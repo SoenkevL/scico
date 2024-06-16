@@ -1,11 +1,12 @@
 import os
 import argparse
 import numpy as np
+import pandas as pd
 import yaml
 from txtai import Embeddings
 from icecream import ic
 import markdown_chunker
-
+import ast
 
 class Indexer:
 
@@ -62,7 +63,12 @@ class Indexer:
     def markdown_from_pdf_path(self, pdf_path):
         ic(pdf_path)
         pdf_name = pdf_path.split('/')[-1].split('.pdf')[0]
-        markdown_folder_path = pdf_path.split('.pdf')[0]
+        if '.' in pdf_name:
+            pdf_folder_path = '/'.join(pdf_path.split('/')[:-1])
+            mardkown_folder_name = pdf_name.split('.')[0]
+            markdown_folder_path = os.path.join(pdf_folder_path, mardkown_folder_name)
+        else:
+            markdown_folder_path = pdf_path.split('.pdf')[0]
         markdown_file_path = f'{markdown_folder_path}/{pdf_name}.md'
         return markdown_folder_path, markdown_file_path
 
@@ -129,9 +135,91 @@ class Indexer:
         text = "\n".join(chunks)
         return text
 
-    def ask(self, question):
+    def return_context_df(self):
+        df = pd.DataFrame()
+        for x in list(self.current_graph.centrality().keys())[:10]:
+            ref = self.embeddings.search("select id, tags, text from txtai where indexid = :id", limit=1, parameters={"id": x})[0]
+            ref_dict = ast.literal_eval(ref['tags'])
+            ref_dict['text'] = ref['text']
+            ref_dict['id'] = ref['id']
+            ref_dict['index'] = 0
+            ref_dict = {key: [value] for key, value in ref_dict.items()}
+            temp_frame = pd.DataFrame.from_dict(ref_dict)
+            if df.empty:
+                df = temp_frame
+            else:
+                df = pd.concat([df, temp_frame], axis=0, ignore_index=True)
+        return df.reset_index(drop=True).drop(columns='index')
+
+    def extract_title_from_name(self, df):
+        title = df['title']
+        pdf_name = df['pdf_name']
+        if title:
+            return title
+        else:
+            return pdf_name.split('.pdf')[0]
+
+    def format_context_df(self, df):
+        df = df.loc[:, ['id', 'title', 'pdf_name', 'section', 'text', 'authors', 'reference']]
+        df['title'] = df[['title', 'pdf_name']].apply(self.extract_title_from_name, axis=1)
+        return df.set_index(['pdf_name', 'section', 'id']).sort_index()
+
+    def formatted_context_string_from_formatted_df(self, df):
+        intro = (f'<BEGIN_CONTEXT>'
+                 f'\n This string contains scientifically valid information in order to answer the above question'
+                 f'\n It is structured on three levels namely the paper it was taken from,'
+                 f'the section and the text from the section'
+                 f'\n {"-"*30}')
+        current_pdf = None
+        current_section = None
+        context_string_array = [intro]
+        for index in df.index:
+            pdf, section, id = index
+            if not pdf == current_pdf:
+                if current_pdf:
+                    context_string_array.append(f'<end_paper>')
+                context_string_array.append(f'<begin_paper>: {pdf}')
+                current_pdf = pdf
+            if not section == current_section:
+                if current_section:
+                    context_string_array.append(f'\t<end_section>')
+                context_string_array.append(f'\t<begin_section>: {section}')
+                current_section = section
+            context_string_array.append(f'\t\t<begin_text>: \n\t\t\t{df.loc[index, "text"]} \n\t\t<end_text>')
+        context_string_array.append('<END_CONTEXT>')
+        return '\n'.join(context_string_array)
+
+    def unformatted_context_string_from_formatted_df(self, df):
+        intro = (f'<BEGIN_CONTEXT>'
+                 f'\n This string contains scientifically valid information in order to answer the above question'
+                 f'\n It is structured on three levels namely the paper it was taken from,'
+                 f'the section and the text from the section'
+                 f'\n {"-"*30}')
+        current_pdf = None
+        current_section = None
+        context_string_array = [intro]
+        for index in df.index:
+            pdf, section, id = index
+            if not pdf == current_pdf:
+                context_string_array.append(f'{pdf}: ')
+                current_pdf = pdf
+            if not section == current_section:
+                context_string_array.append(f'\t{section}: ')
+                current_section = section
+            context_string_array.append(f'\t\t"{df.loc[index, "text"]}"')
+        context_string_array.append('<END_CONTEXT>')
+        return '\n'.join(context_string_array)
+
+
+    def ask(self, question, formatting=False):
         self.graph_from_prompt(question, 1100)
-        return self.return_context_string()
+        context_df = self.return_context_df()
+        formatted_context_df = self.format_context_df(context_df)
+        if formatting:
+            context_string = self.formatted_context_string_from_formatted_df(formatted_context_df)
+        else:
+            context_string = self.unformatted_context_string_from_formatted_df(formatted_context_df)
+        return context_string
 
     def create_uid_from_ducment_and_paragraph_id(self, document_idx, paragraph_idx):
         if paragraph_idx < 2**16:
@@ -149,13 +237,17 @@ if __name__ == '__main__':
     ic.enable()
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--index_path", help="path to the index folder")
+    parser.add_argument('-zsp', '--zotero_storage_path', help='path to zotero storage')
+    parser.add_argument('-ri', '--reindex', help='True if index should be recomputed from a zotero library')
     args = parser.parse_args()
-    path = args.index_path
+    index_path = args.index_path
+    zotero_path = args.zotero_storage_path
+    reindex = args.reindex
     indexer = Indexer('./index')
-    indexer.vector_storage_from_prepared_zotero_storage('/home/soenke/DataspellProjects/scico/optimal_text_extraction/example_bib')
+    if zotero_path:
+        indexer.vector_storage_from_prepared_zotero_storage(zotero_path)
     indexer.load_embeddings()
     print(indexer.ask('What is an invariant feature'))
-    print(f'\n{"="*30}'*5)
     print(indexer.ask('What is cross frequency coupling'))
 
 
