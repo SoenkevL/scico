@@ -13,7 +13,6 @@ class MarkdownExtractor:
         self.max_pages = max_pages
         pass
 
-
     def call_mardown_extractor_on_pdf(self, pdf_path, language=None, batch_multiplier=None, max_pages=None):
         language = language if language else self.language
         batch_multiplier = batch_multiplier if batch_multiplier else self.batch_multiplier
@@ -30,7 +29,6 @@ class MarkdownExtractor:
         """
         os.system(cmd)
         return True
-
 
     def check_if_markdown_exists(self, path):
         for root, dirs, files in os.walk(path):

@@ -29,7 +29,6 @@ class ZoteroMetadataExtractor:
         author_df = pd.DataFrame(data={'itemID':itemIDs, 'authors':authors})
         return author_df
 
-
     def createValueFrame(self, itemID, con):
         return pd.read_sql_query(f"""
             SELECT
@@ -43,7 +42,6 @@ class ZoteroMetadataExtractor:
             JOIN fields as f ON id.fieldID=f.fieldID
             WHERE i.itemID=={itemID}
         """, con)
-
 
     def createMatchFrame(self, key, con):
         return pd.read_sql_query(f"""
@@ -64,14 +62,11 @@ class ZoteroMetadataExtractor:
             WHERE i.key=='{key}'
         """, con)
 
-
     def extractItemIDFromMF(self, mf):
         return mf.iloc[0,2]
 
-
     def key_extractor(self, path):
         return path.split(os.sep)[-1]
-
 
     def createZoteroSql(self,dirname, con):
         try:
@@ -88,13 +83,11 @@ class ZoteroMetadataExtractor:
         except IndexError:
             return pd.DataFrame(columns=['itemID', 'value', 'fieldName', 'authors'])
 
-
     def create_metadata_dict_from_df(self, df):
         array = df.loc[:,['fieldName', 'value']].to_numpy()
         metadata_dict = {f:v for f,v in array}
         metadata_dict['authors']=df.loc[0,'authors']
         return metadata_dict
-
 
     def extract_zotero_metadata_to_dictionary(self, path):
         with sqlite3.connect(self.zotero_sqlite_path) as connz:
@@ -104,8 +97,6 @@ class ZoteroMetadataExtractor:
                 metadata_dict = self.create_metadata_dict_from_df(df_db)
                 return metadata_dict
         return None
-
-
 
     def parse_zotero_metadata_for_paperai(self, metadata_dict):
         title, published, publication, authors, affiliations, affiliation, reference = (

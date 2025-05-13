@@ -30,7 +30,6 @@ class Indexer:
         self.index_path = index_path
         self.embeddings = self.initialize_embeddings()
         self.current_graph = None
-        pass
 
     def create_vector_storage(self):
         pass

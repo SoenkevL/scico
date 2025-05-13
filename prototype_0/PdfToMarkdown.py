@@ -29,7 +29,7 @@ def parse_pdf(pdf_path: [os.PathLike] = None, output_path :[os.PathLike] = None)
         'use_llm': True,
         'llm_service': 'marker.services.ollama.OllamaService',
         'ollama_base_url': 'http://localhost:11434',
-        'ollama_model': 'qwen2.5:14b'
+        'ollama_model': 'qwen3:14b'
     }
     config_parser = ConfigParser(ollama_config)
 

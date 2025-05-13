@@ -18,8 +18,6 @@ class MarkdownChunker:
         self.chunk_size = 500
         self.chunk_overlap = 50
 
-
-
     def chunker(self, md_path=None, method='markdown+recursive'):
         md_path = md_path if md_path else self.md_path
         plaintextstring = self.load_markdown(md_path)
