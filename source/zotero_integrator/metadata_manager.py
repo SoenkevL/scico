@@ -15,7 +15,8 @@ class MetadataManager:
         """Initialize the metadata manager"""
         pass
         
-    def load_yaml(self, path):
+    @staticmethod
+    def load_yaml(path):
         """
         Load YAML file into a dictionary.
         
@@ -31,8 +32,9 @@ class MetadataManager:
         except (yaml.YAMLError, IOError) as e:
             print(f"Error loading YAML file {path}: {e}")
             return None
-            
-    def save_yaml(self, data, path):
+
+    @staticmethod
+    def save_yaml(data, path):
         """
         Save dictionary to YAML file.
         
@@ -50,8 +52,9 @@ class MetadataManager:
         except (yaml.YAMLError, IOError) as e:
             print(f"Error saving YAML file {path}: {e}")
             return False
-            
-    def combine_metadata(self, *metadata_dicts):
+
+    @staticmethod
+    def combine_metadata(*metadata_dicts):
         """
         Combine multiple metadata dictionaries.
         
@@ -66,8 +69,9 @@ class MetadataManager:
             if metadata:
                 result.update(metadata)
         return result
-        
-    def extract_citation_info(self, metadata):
+
+    @staticmethod
+    def extract_citation_info(metadata):
         """
         Extract citation information from metadata.
         
@@ -84,8 +88,9 @@ class MetadataManager:
             'publication': metadata.get('publication'),
             'reference': metadata.get('reference')
         }
-        
-    def format_citation(self, metadata, style='apa'):
+
+    @staticmethod
+    def format_citation(metadata, style='apa'):
         """
         Format citation string from metadata.
         

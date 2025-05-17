@@ -5,6 +5,7 @@
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/.venv_scico" />
     </content>
+    <content url="file://$USER_HOME$/Zotero" />
     <orderEntry type="jdk" jdkName="Python 3.13 (scico)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
