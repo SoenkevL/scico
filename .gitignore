@@ -240,4 +240,7 @@ fabric.properties
 *.yaml
 *.pdf
 
+#Zotero folder
+Zotero/
+
 
