@@ -1,9 +1,12 @@
+# this file is used to convert a pdf to a markdown file
+
 from marker.converters.pdf import PdfConverter
 import argparse
 from marker.models import create_model_dict
 from marker.config.parser import ConfigParser
 from marker.output import text_from_rendered, save_output
 import os
+from configs import extractor_ollama_config
 
 def parse_pdf(pdf_path: [os.PathLike] = None, output_path :[os.PathLike] = None) -> None:
     '''
@@ -23,15 +26,9 @@ def parse_pdf(pdf_path: [os.PathLike] = None, output_path :[os.PathLike] = None)
     pdf_name = os.path.basename(pdf_path)
     fname = os.path.splitext(pdf_name)[0]
     output_path = os.path.join(output_path, fname)
+    os.makedirs(output_path, exist_ok=False)
     # set up a config, this could be altered for more flexibility
-    ollama_config = {
-        "output_format": "markdown",
-        'use_llm': True,
-        'llm_service': 'marker.services.ollama.OllamaService',
-        'ollama_base_url': 'http://localhost:11434',
-        'ollama_model': 'qwen2.5:14b'
-    }
-    config_parser = ConfigParser(ollama_config)
+    config_parser = ConfigParser(extractor_ollama_config)
 
     converter = PdfConverter(
         config=config_parser.generate_config_dict(),
@@ -69,15 +66,6 @@ def main():
     if not os.path.exists(args.pdf):
         print(f"Error: PDF file not found at '{args.pdf}'")
         return 1
-
-    # Validate output path if provided
-    if args.output and not os.path.exists(args.output):
-        print(f"Warning: Output directory '{args.output}' does not exist. Attempting to create it.")
-        try:
-            os.makedirs(args.output)
-        except Exception as e:
-            print(f"Error creating output directory: {e}")
-            return 1
 
     # Call the parse_pdf function
     try:
