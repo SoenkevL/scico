@@ -1,3 +1,4 @@
+import json
 import os
 import uuid
 from pprint import pformat
@@ -38,15 +39,17 @@ class MarkdownChunker:
 
     def add_metadata_to_splits_and_convert_to_dict(self, splits):
         new_splits = []
-        file_uid = uuid.uuid4().bytes
         for i, split in enumerate(splits):
-            new_split = {
-                'file_uid': file_uid,
+            split_metadata = split.metadata
+            additonal_metadata = {
                 'filename': os.path.basename(self.md_path),
-                'split_uid': uuid.uuid4().bytes,
                 'split_id': i,
-                'metadata': split.metadata,
+            }
+            metadata = {**split_metadata, **additonal_metadata}
+            new_split = {
+                'split_uid': str(uuid.uuid4().hex),
                 'page_content': split.page_content,
+                'metadata': metadata
             }
             new_splits.append(new_split)
         return new_splits
@@ -62,6 +65,14 @@ class MarkdownChunker:
             for split in splits:
                 f.write(pformat(split, indent=4, compact=True))
                 f.write('\n')
+
+
+    def save_splits_to_json(self, splits=None):
+        splits = splits if splits else self.splits
+        mdpath, mdname = os.path.split(self.md_path)
+        outname = 'chunks.json'
+        outpath = os.path.join(mdpath, outname)
+        json.dump(splits, open(outpath, 'w'), indent=4)
 
 def main():
     import argparse
@@ -80,7 +91,7 @@ def main():
     args = parser.parse_args()
     chunker = MarkdownChunker(md_path=args.markdown)
     splits = chunker.chunk()
-    chunker.save_splits_to_txt(splits)
+    chunker.save_splits_to_json(splits)
 
 if __name__ == '__main__':
     main()

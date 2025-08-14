@@ -8,7 +8,7 @@ from marker.output import text_from_rendered, save_output
 import os
 from configs import extractor_ollama_config
 
-def parse_pdf(pdf_path: [os.PathLike] = None, output_path :[os.PathLike] = None) -> None:
+def convert_pdf_to_markdown(pdf_path: [os.PathLike] = None, output_path :[os.PathLike] = None) -> None:
     '''
     THis function will create a new folder using the pdfs name where it stores the markdown, pictures and meta.json file.
     The output files will be named exactly like the pdf or keep their internal naming from marker for the pictures.
@@ -69,7 +69,7 @@ def main():
 
     # Call the parse_pdf function
     try:
-        parse_pdf(pdf_path=args.pdf, output_path=args.output)
+        convert_pdf_to_markdown(pdf_path=args.pdf, output_path=args.output)
         return 0
     except Exception as e:
         print(f"Error during PDF conversion: {e}")
