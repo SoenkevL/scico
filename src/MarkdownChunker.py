@@ -1,4 +1,5 @@
 import os
+import uuid
 from pprint import pformat
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from configs import headers_to_split_on
@@ -29,10 +30,28 @@ class MarkdownChunker:
             # Split
             md_header_splits = markdown_splitter.split_text(plaintextstring)
             splits = text_splitter.split_documents(md_header_splits)
+            splits = self.add_metadata_to_splits_and_convert_to_dict(splits)
             self.splits = splits
             return splits
         else:
             return None
+
+    def add_metadata_to_splits_and_convert_to_dict(self, splits):
+        new_splits = []
+        file_uid = uuid.uuid4().bytes
+        for i, split in enumerate(splits):
+            new_split = {
+                'file_uid': file_uid,
+                'filename': os.path.basename(self.md_path),
+                'split_uid': uuid.uuid4().bytes,
+                'split_id': i,
+                'metadata': split.metadata,
+                'page_content': split.page_content,
+            }
+            new_splits.append(new_split)
+        return new_splits
+
+
 
     def save_splits_to_txt(self, splits=None):
         splits = splits if splits else self.splits
@@ -40,10 +59,8 @@ class MarkdownChunker:
         outname = 'chunks.txt'
         outpath = os.path.join(mdpath, outname)
         with open(outpath, 'w') as f:
-            for i, split in enumerate(splits):
-                f.write(f'split {i}\n metadata: ')
-                f.write(pformat(split.metadata, indent=4, compact=True))
-                f.write(f'\n page_content: {split.page_content}')
+            for split in splits:
+                f.write(pformat(split, indent=4, compact=True))
                 f.write('\n')
 
 def main():
