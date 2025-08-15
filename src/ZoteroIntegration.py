@@ -21,6 +21,7 @@ Notes:
 from __future__ import annotations
 
 import os
+import re
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -282,6 +283,10 @@ class ZoteroMetadataRetriever:
 
         # Collections
         data["collections"] = self._get_item_collections(ses, item_id)
+
+        # Citation key (Better BibTeX pinned key)
+        data["citation_key"] = self._get_item_citation_key(ses, item_id, fields)
+
         data["bibkey"] = self._create_bib_key_from_info(data)
 
         return data
@@ -423,6 +428,47 @@ class ZoteroMetadataRetriever:
         authors_ident = authors.split(',')[0].lower()
         key = f"{authors_ident}_{title_ident}_{year}"
         return key
+
+    # --------- Citation key retrieval ---------
+
+    def _get_item_citation_key(
+        self,
+        ses: Session,
+        item_id: int,
+        fields_map: Dict[str, int],
+    ) -> Optional[str]:
+        """
+        Retrieve the Better BibTeX citation key for an item.
+
+        Precedence:
+        1) Dedicated 'citationKey' field if present and non-empty
+        2) Pinned key in the 'Extra' field as a line: 'Citation Key: <key>' or 'Citekey: <key>'
+
+        Returns:
+            The citation key string, or None if not found.
+        """
+        # 1) Dedicated citationKey field (if available)
+        citation_field_id = fields_map.get("citationKey") or fields_map.get("citationkey")
+        if citation_field_id is not None:
+            val = self._get_item_field_value(ses, item_id, citation_field_id)
+            if val and val.strip():
+                return val.strip()
+
+        # 2) Parse from Extra
+        extra_field_id = fields_map.get("extra")
+        extra_text = self._get_item_field_value(ses, item_id, extra_field_id) if extra_field_id is not None else None
+        if not extra_text:
+            return None
+
+        # Look for a dedicated line with 'Citation Key:' or 'Citekey:'
+        # Capture everything after the colon until end-of-line, trimmed.
+        pattern = re.compile(r'^(?:Citation Key|Citekey)\s*:\s*(.+?)\s*$', flags=re.IGNORECASE | re.MULTILINE)
+        match = pattern.search(extra_text)
+        if match:
+            key = match.group(1).strip()
+            return key or None
+
+        return None
 
 
 # ---------------------------
