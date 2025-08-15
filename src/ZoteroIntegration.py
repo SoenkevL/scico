@@ -179,9 +179,122 @@ class ZoteroMetadataRetriever:
 
             return metadata
 
+
+    def get_pdfs_in_collection(self, collection_name: str) -> List[Dict[str, Any]]:
+        """
+        Return a list of dicts for all PDF attachments belonging to items in the given collection.
+
+        Each dict contains:
+            - pdf_name: str (basename of the file; if path had 'storage:' prefix, that's ignored)
+            - pdf_path: Optional[str] (absolute path found by searching the Zotero storage; None if not found)
+            - itemID: int (parent bibliographic item ID, falling back to attachment itemID)
+            - citationkey: Optional[str]
+        """
+        self._ensure_initialized()
+
+        with self._session() as ses:
+            Collections = self.Collections
+            CollectionItems = self.CollectionItems
+            ItemAttachments = self.ItemAttachments
+
+            # 1) Collections with matching name
+            coll_ids = [
+                cid for (cid,) in ses.execute(
+                    select(Collections.collectionID).where(Collections.collectionName == collection_name)
+                ).all()
+            ]
+            if not coll_ids:
+                return []
+
+            # 2) Find candidate PDF attachments
+            pdf_like = func.lower(ItemAttachments.path).like('%.pdf')
+            is_pdf_ct = (ItemAttachments.contentType == 'application/pdf')
+            q = (
+                select(
+                    ItemAttachments.itemID.label("attachment_item_id"),
+                    ItemAttachments.parentItemID.label("parent_item_id"),
+                    ItemAttachments.path.label("path"),
+                    CollectionItems.itemID.label("parent_item_bib_id"),
+                )
+                .join(CollectionItems, CollectionItems.collectionID.in_(coll_ids))
+                .where(
+                    ItemAttachments.parentItemID == CollectionItems.itemID,
+                    (is_pdf_ct | pdf_like),
+                    ItemAttachments.path.is_not(None),
+                )
+            )
+
+            rows = ses.execute(q).all()
+            if not rows:
+                return []
+
+            fields_map = self._get_field_name_to_id_map(ses)
+
+            results: List[Dict[str, Any]] = []
+            for attachment_item_id, parent_item_id, path, parent_bib_id in rows:
+                base_item_id = parent_item_id or parent_bib_id or attachment_item_id
+                citation_key = self._get_item_citation_key(ses, base_item_id, fields_map)
+
+                # Normalize and derive the actual filename
+                raw = (path or "").replace("\\", "/")
+                if raw.lower().startswith("storage:"):
+                    # "storage:HASH/file.pdf" -> "file.pdf"
+                    pdf_name = os.path.basename(raw.split(":", 1)[1].lstrip("/"))
+                else:
+                    pdf_name = os.path.basename(raw) if raw else None
+
+                # Search the Zotero storage for this filename
+                abs_path = self._find_pdf_in_library(pdf_name) if pdf_name else None
+
+                results.append(
+                    {
+                        "pdf_name": pdf_name,
+                        "pdf_path": abs_path,  # None if not found
+                        "itemID": int(base_item_id) if base_item_id is not None else None,
+                        "citationkey": citation_key,
+                    }
+                )
+
+            return results
+
     # ---------------------------
     # Internal helpers
     # ---------------------------
+
+    def _find_pdf_in_library(self, filename: str) -> Optional[str]:
+        """
+        Search the Zotero storage directory for a PDF by filename and return its absolute path.
+
+        Args:
+            filename: e.g., "paper.pdf"
+
+        Returns:
+            Absolute path string if found, else None.
+        """
+        if not filename:
+            return None
+
+        storage_root = (self.config.zotero_path / "storage").expanduser().resolve()
+        if not storage_root.exists():
+            return None
+
+        # Fast path: exact filename search
+        for p in storage_root.rglob(filename):
+            try:
+                return str(p.expanduser().resolve())
+            except Exception:
+                continue
+
+        # Fallback: case-insensitive match
+        target = filename.lower()
+        for p in storage_root.rglob("*.pdf"):
+            try:
+                if p.name.lower() == target:
+                    return str(p.expanduser().resolve())
+            except Exception:
+                continue
+
+        return None
 
     def _create_engine(self) -> None:
         if self._engine is not None:
@@ -286,8 +399,6 @@ class ZoteroMetadataRetriever:
 
         # Citation key (Better BibTeX pinned key)
         data["citation_key"] = self._get_item_citation_key(ses, item_id, fields)
-
-        data["bibkey"] = self._create_bib_key_from_info(data)
 
         return data
 
@@ -419,16 +530,6 @@ class ZoteroMetadataRetriever:
                     pass
         return None
 
-    @staticmethod
-    def _create_bib_key_from_info(data: Dict[str, Any]) -> str:
-        year = data.get("year", 'nodate')
-        title = data.get("title", 'noname ')
-        authors = data.get("authors", 'noauthor,')
-        title_ident = title.split(' ')[0].lower()
-        authors_ident = authors.split(',')[0].lower()
-        key = f"{authors_ident}_{title_ident}_{year}"
-        return key
-
     # --------- Citation key retrieval ---------
 
     def _get_item_citation_key(
@@ -485,11 +586,18 @@ def demo_cli() -> None:
     load_dotenv()
     retriever = ZoteroMetadataRetriever(Path(os.getenv("ZOTERO_LIBRARY_PATH")))
     retriever.initialize()
+    pdfs_in_col = retriever.get_pdfs_in_collection("IIT")
+    if pdfs_in_col is None:
+        print("No pdfs found for the given collection.")
+    else:
+        print(json.dumps(pdfs_in_col, indent=2, ensure_ascii=False))
+    print('='*200)
     meta = retriever.get_metadata_for_pdf(Path(os.getenv("TEST_PDF_PATH")))
     if meta is None:
         print("No metadata found for the given PDF path.")
     else:
         print(json.dumps(meta, indent=2, ensure_ascii=False))
+
 
 
 if __name__ == "__main__":
