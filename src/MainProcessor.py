@@ -43,17 +43,8 @@ class MainProcessor:
         pass
 
 def main():
-    import argparse
-    # Create argument parser
-    parser = argparse.ArgumentParser(description='Chunk Markdown File')
-
-    # Add required argument for PDF file path
-    parser.add_argument('--collection_name', type=str, required=True,
-                        help='name of the collection to be loaded or created')
-
-    # Parse arguments
-    args = parser.parse_args()
-    processor = MainProcessor(args.collection_name)
+    load_dotenv()
+    processor = MainProcessor(os.getenv('COLLECTION_NAME'))
     chunklist = processor.chunk_list_from_json('exampleMarkdown/Chapter Summary - Criticality of Resting-State EEG as a Predictor of Perturbational Complexity and Consciousness Levels During Anesthesia/chunks.json'
                                             )
     processor.add_chunks_to_vector_storage(chunklist)
