@@ -1,4 +1,4 @@
-import indexer as indexer
+from scico.src import VectorStorage as indexer
 from txtai.pipeline import LLM
 import argparse
 
