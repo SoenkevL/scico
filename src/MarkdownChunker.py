@@ -54,8 +54,6 @@ class MarkdownChunker:
             new_splits.append(new_split)
         return new_splits
 
-
-
     def save_splits_to_txt(self, splits=None):
         splits = splits if splits else self.splits
         mdpath, mdname = os.path.split(self.md_path)
@@ -65,7 +63,6 @@ class MarkdownChunker:
             for split in splits:
                 f.write(pformat(split, indent=4, compact=True))
                 f.write('\n')
-
 
     def save_splits_to_json(self, splits=None):
         splits = splits if splits else self.splits
