@@ -31,14 +31,19 @@ class MainProcessor:
 
     def refresh_library(self):
         pass
+
     def add_pdf(self):
         pass
+
     def remove_pdf(self):
         pass
+
     def search_pdf(self):
         pass
+
     def show_library(self):
         pass
+
     def exit_program(self):
         pass
 
