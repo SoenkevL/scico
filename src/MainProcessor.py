@@ -4,9 +4,9 @@ import os
 from pprint import pprint
 
 from dotenv import load_dotenv
-from PdfToMarkdown import convert_pdf_to_markdown
-from MarkdownChunker import MarkdownChunker
-from VectorStorage import ChromaStorage
+from src.PdfToMarkdown import convert_pdf_to_markdown
+from src.MarkdownChunker import MarkdownChunker
+from src.VectorStorage import ChromaStorage
 
 
 class MainProcessor:
@@ -17,8 +17,8 @@ class MainProcessor:
         self.index_path = os.getenv('INDEX_PATH')
         self.storage = ChromaStorage(self.index_path, collection_name)
 
-    def query_vector_storage(self, query):
-        return self.storage.query(query)
+    def query_vector_storage(self, query, n_results=10):
+        return self.storage.query(query, n_results=n_results)
 
     def add_chunks_to_vector_storage(self, chunks):
         self.storage.add_documents(chunks)
