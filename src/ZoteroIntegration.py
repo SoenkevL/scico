@@ -18,8 +18,6 @@ Notes:
 - The function attempts to match the given PDF path in several ways (exact match, filename match, and LIKE patterns).
 """
 
-from __future__ import annotations
-
 import os
 import re
 from contextlib import contextmanager
