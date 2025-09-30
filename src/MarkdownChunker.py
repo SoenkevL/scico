@@ -3,7 +3,7 @@ import os
 import uuid
 from pprint import pformat
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
-from configs import headers_to_split_on
+from src.configs import headers_to_split_on
 
 class MarkdownChunker:
     def load_markdown(self, md_path):
