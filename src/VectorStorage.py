@@ -25,7 +25,7 @@ class ChromaStorage:
             persist_directory=index_path
         )
     
-    def add_documents(self, chunks: List[Dict[str, Any]]) -> List[str]:
+    def add_documents(self, documents: list[Document]) -> List[str]:
         """
         Add documents to vector store using LangChain Document format.
         
@@ -35,20 +35,7 @@ class ChromaStorage:
         Returns:
             List of document IDs
         """
-        # Convert to LangChain Document objects
-        documents = []
-        ids = []
-        
-        for chunk in chunks:
-            doc = Document(
-                page_content=chunk.get('page_content', ''),
-                metadata=chunk.get('metadata', {})
-            )
-            documents.append(doc)
-            ids.append(chunk.get('split_uid'))
-        
-        # Add to vector store
-        return self.vectorstore.add_documents(documents, ids=ids)
+        return self.vectorstore.add_documents(documents)
     
     def query(self, query_texts: List[str], n_results: int = 5) -> Dict[str, Any]:
         """
