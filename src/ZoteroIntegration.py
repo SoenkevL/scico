@@ -177,7 +177,6 @@ class ZoteroMetadataRetriever:
 
             return metadata
 
-
     def get_pdfs_in_collection(self, collection_name: str) -> List[Dict[str, Any]]:
         """
         Return a list of dicts for all PDF attachments belonging to items in the given collection.
