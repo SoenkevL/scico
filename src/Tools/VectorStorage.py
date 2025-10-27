@@ -97,3 +97,11 @@ class ChromaStorage:
             print(f'Document: {doc[:200]}...')
             print(f'Metadata: {meta}')
             print('---')
+
+    @staticmethod
+    def add_additional_metadata_to_documents(metadata, splits=None):
+        if not splits:
+            raise Exception("No splits found. Please run chunk() first.")
+        for split in splits:
+            split.metadata = {**split.metadata, **metadata}
+        return splits

@@ -1,6 +1,5 @@
 import json
 import os
-from pprint import pprint
 from typing import List, Dict, Any
 
 from dotenv import load_dotenv
@@ -9,10 +8,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 
-from src.PdfToMarkdown import convert_pdf_to_markdown
-from src.MarkdownChunker import MarkdownChunker
-from src.VectorStorage import ChromaStorage
-from src.RAGQuestionOptimizer import RAGQuestionOptimizer
+from src.Tools.VectorStorage import ChromaStorage
+from legacy.RAGQuestionOptimizer import RAGQuestionOptimizer
 
 
 class MainProcessor:

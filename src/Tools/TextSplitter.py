@@ -6,7 +6,7 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharac
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_ollama import OllamaEmbeddings
 from langchain_core.documents import Document
-from src.configs import headers_to_split_on
+from src.utils.configs import headers_to_split_on
 
 class MarkdownChunker:
     def load_markdown(self, md_path):
@@ -102,7 +102,6 @@ class MarkdownChunker:
         return splits
 
     def add_additional_metadata(self, metadata, splits=None):
-        splits = splits if splits else self.splits
         if not splits:
             raise Exception("No splits found. Please run chunk() first.")
         for split in splits:
