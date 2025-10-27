@@ -4,6 +4,8 @@ import os
 from pprint import pprint, pformat
 
 class Zotero:
+    """ Class to Interact with the Users Zotero Library mainly via the Zotero API"""
+
     def __init__(self):
         load_dotenv()
         self.zot = zotero.Zotero(os.getenv("ZOTERO_ID"), "user", os.getenv("ZOTERO_API_KEY"))
