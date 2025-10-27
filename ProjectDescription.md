@@ -79,6 +79,27 @@ Another advantage of this architecture is that agents can be build with good gua
 ## Sicos Structure
 TODO: add a tree structure of the project
 
+```text
+.
+├── LICENSE
+├── ProjectDescription.md
+├── pyproject.toml
+├── README.md
+├── src
+│   ├── Agents
+│   ├── Tools
+│   │   ├── GitHub.py
+│   │   ├── Notion.py
+│   │   ├── PdfToMarkdown.py
+│   │   ├── TextSplitter.py
+│   │   ├── VectorStorage.py
+│   │   └── Zotero.py
+│   ├── utils
+│   │   ├── configs.py
+│   │   └── Logger.py
+│   └── WorkFlows
+```
+
 ## Sicos Classes
 
 ### MainAgent
