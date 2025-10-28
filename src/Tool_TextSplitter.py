@@ -6,7 +6,7 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharac
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_ollama import OllamaEmbeddings
 from langchain_core.documents import Document
-from src.utils.configs import headers_to_split_on
+from utils.configs import headers_to_split_on
 
 class MarkdownChunker:
     def load_markdown(self, md_path):

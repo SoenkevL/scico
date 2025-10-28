@@ -6,7 +6,7 @@ from marker.models import create_model_dict
 from marker.config.parser import ConfigParser
 from marker.output import text_from_rendered, save_output
 import os
-from configs import extractor_ollama_config
+from utils.configs import extractor_ollama_config
 
 def convert_pdf_to_markdown(pdf_path: [os.PathLike] = None, output_path :[os.PathLike] = None) -> None:
     '''
