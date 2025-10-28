@@ -8,7 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 
-from src.Tools.VectorStorage import ChromaStorage
+from src.Tool_VectorStorage import ChromaStorage
 from legacy.RAGQuestionOptimizer import RAGQuestionOptimizer
 
 
