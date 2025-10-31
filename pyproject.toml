@@ -1,8 +1,8 @@
 [project]
 name = "scico"
 version = "0.1.0"
-description = "This project serves as a scientific coworker centered arround an LLM"
-requires-python = ">=3.14"
+description = "AI-powered scientific research assistant that removes technical barriers through agentic workflows, integrating Zotero, vector storage, and document processing to elevate human creativity in research and coding."
+requires-python = "==3.13.*"
 dependencies = [
     "chromadb>=0.3.23",
     "langchain>=1.0.2",
@@ -12,5 +12,7 @@ dependencies = [
     "mcp>=0.9.0",
     "python-dotenv",
     "pyzotero",
-    "sqlalchemy"
+    "sqlalchemy",
+    "fastmcp>=2.13.0.2",
+    "notebook>=7.4.7",
 ]
