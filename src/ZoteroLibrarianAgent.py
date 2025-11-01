@@ -23,7 +23,8 @@ from Zotero import (
 )
 
 load_dotenv()
-
+# Tracing
+os.environ["LANGCHAIN_PROJECT"] = "ZoteroLibrarian"
 
 # ===== STEP 1: Convert Zotero functions to LangChain tools =====
 @tool
@@ -100,7 +101,7 @@ class ZoteroLibrarian:
     A librarian agent that helps users interact with their Zotero library.
     Uses LangChain v1.0 create_agent for construction.
     """
-    
+
     def __init__(self, model_name: str = "gpt-oss:latest", temperature: float = 0.0):
         """
         Initialize the Zotero Librarian agent.
@@ -115,7 +116,7 @@ class ZoteroLibrarian:
             temperature=temperature,
             base_url=os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
         )
-        
+
         # Define available tools
         self.tools = [
             count_items,
@@ -125,7 +126,7 @@ class ZoteroLibrarian:
             get_item_fulltext,
             get_pdf_path
         ]
-        
+
         # Create system prompt (renamed from 'prompt' to 'system_prompt' in v1.0)
         system_prompt = """You are a helpful Zotero librarian assistant. 
 Your role is to help users navigate and understand their Zotero research library.
@@ -146,14 +147,14 @@ When helping users:
 
 Always be precise and helpful. If you cannot find information, say so clearly.
 """
-        
+
         # Create agent using v1.0 API (replaces create_tool_calling_agent + AgentExecutor)
         self.agent = create_agent(
             model=self.llm,
             tools=self.tools,
             system_prompt=system_prompt
         )
-    
+
     def invoke(self, query: str) -> dict:
         """
         Process a user query using the agent.
@@ -164,11 +165,13 @@ Always be precise and helpful. If you cannot find information, say so clearly.
         Returns:
             Agent's response dictionary
         """
-        result = self.agent.invoke({
-            "messages": [("user", query)]
-        })
+        result = self.agent.invoke(
+            {
+                "messages": [{"role":"user", "content":query}]
+            },
+        )
         return result
-    
+
     def stream(self, query: str):
         """
         Stream the agent's response.
@@ -191,7 +194,7 @@ class ZoteroWorkflow:
     A simpler, more deterministic workflow for common Zotero tasks.
     Uses LCEL chains without agentic behavior for predictable operations.
     """
-    
+
     def __init__(self, model_name: str = "gpt-oss:latest", temperature: float = 0.0):
         self.llm = ChatOllama(
             model=model_name,
@@ -199,7 +202,7 @@ class ZoteroWorkflow:
             base_url=os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
         )
         self.output_parser = StrOutputParser()
-    
+
     def summarize_collection(self, collection_id: str) -> str:
         """
         Generate a summary of a collection using a deterministic workflow.
@@ -212,7 +215,7 @@ class ZoteroWorkflow:
         """
         # Step 1: Get collection items
         items = get_collection_items(collection_id)
-        
+
         # Step 2: Get metadata for each item
         items_info = []
         for title, item_id in list(items.items())[:10]:  # Limit to first 10
@@ -223,7 +226,7 @@ class ZoteroWorkflow:
                 'date': metadata.get('data', {}).get('date', 'unknown'),
                 'citation_key': metadata.get('data', {}).get('citationKey', 'unknown'),
             })
-        
+
         # Step 3: Create summarization chain
         prompt = ChatPromptTemplate.from_template(
             """Based on these items from a Zotero collection, provide a brief summary:
@@ -233,16 +236,16 @@ Items:
 
 Provide a 2-3 sentence summary describing the main topics and timeframe of this collection."""
         )
-        
+
         chain = (
-            RunnableLambda(lambda x: {"items": str(x)})
-            | prompt
-            | self.llm
-            | self.output_parser
+                RunnableLambda(lambda x: {"items": str(x)})
+                | prompt
+                | self.llm
+                | self.output_parser
         )
-        
+
         return chain.invoke(items_info)
-    
+
     def find_and_describe_item(self, search_term: str) -> str:
         """
         Search for an item and provide its description.
@@ -255,42 +258,44 @@ Provide a 2-3 sentence summary describing the main topics and timeframe of this 
         """
         # Get all collections
         collections = list_all_collections()
-        
+
         # Simple search
         matching_collections = {
             name: cid for name, cid in collections.items()
             if search_term.lower() in name.lower()
         }
-        
+
         if not matching_collections:
             return f"No collections found matching '{search_term}'"
-        
+
         # Get items from first matching collection
         collection_name = list(matching_collections.keys())[0]
         collection_id = matching_collections[collection_name]
-        
+
         return f"Found collection: {collection_name}\n" + \
-               self.summarize_collection(collection_id)
+            self.summarize_collection(collection_id)
 
 
 # ===== STEP 4: Usage example =====
 def main():
     """Demo the Zotero Librarian agent"""
-    
+
     print("=" * 60)
     print("Zotero Librarian Agent Demo (LangChain v1.0)")
     print("=" * 60)
-    
+
     # Initialize agent
     librarian = ZoteroLibrarian(model_name="gpt-oss:latest")
-    
+
     # Example queries
     queries = [
         "How many items are in my library?",
         "What collections do I have?",
-        "Show me the items in my first collection"
+        "Which of my collections deal with the topic of eeg?",
+        "What items are part of these collections?",
+        "Retrieve 5 eeg related papers which also deal with meditation and summarize their abstracts"
     ]
-    
+
     for query in queries:
         print(f"\n📚 Query: {query}")
         print("-" * 60)
@@ -301,15 +306,15 @@ def main():
             print(f"Response: {last_message.content}\n")
         else:
             print(f"Response: {result}\n")
-    
+
     # Demo workflow
     print("\n" + "=" * 60)
     print("Deterministic Workflow Demo")
     print("=" * 60)
-    
+
     workflow = ZoteroWorkflow()
     collections = list_all_collections()
-    
+
     if collections:
         first_collection_id = list(collections.values())[0]
         summary = workflow.summarize_collection(first_collection_id)
