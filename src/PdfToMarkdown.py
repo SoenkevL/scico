@@ -1,47 +1,73 @@
-# this file is used to convert a pdf to a markdown file
-
-from marker.converters.pdf import PdfConverter
+""" Convert a pdf file with a given filepath to a markdown file in a specified directory. """
 import argparse
-from marker.models import create_model_dict
-from marker.config.parser import ConfigParser
-from marker.output import text_from_rendered, save_output
+import logging
 import os
-from utils.configs import extractor_ollama_config
+from configparser import ConfigParser
+from os import PathLike
 
-def convert_pdf_to_markdown(pdf_path: [os.PathLike] = None, output_path :[os.PathLike] = None) -> None:
+from marker.config.parser import ConfigParser
+from marker.converters.pdf import PdfConverter
+from marker.models import create_model_dict
+from marker.output import save_output
+
+from src.utils.configs import extractor_ollama_config
+
+logger = logging.getLogger(__name__)
+
+
+def convert_pdf_to_markdown(pdf_path: PathLike, output_path: PathLike = None) -> int:
     '''
-    THis function will create a new folder using the pdfs name where it stores the markdown, pictures and meta.json file.
+    This function will create a new folder using the pdfs name where it stores the markdown, pictures and meta.json file.
     The output files will be named exactly like the pdf or keep their internal naming from marker for the pictures.
     :param pdf_path: path of the pdf file to process
     :param output_path: path where the output folder is created
     :return: None
     '''
+
+    logging.info(
+        f'starting conversion of pdf file: \n{pdf_path}\nto markdown \n{output_path}'
+    )
+
     # checking arguments
     if not pdf_path or not os.path.exists(pdf_path):
-        exit('no or faulty pdf file provided')
-    if not output_path or not os.path.exists(output_path):
+        logger.error('no or faulty pdf file provided')
+        return 0
+    pdf_path = str(pdf_path)
+    if not output_path:
         output_path = os.getcwd()
-        print('no or faulty output path provided, using cwd')
-    # infer the rest of the needed filepaths
-    pdf_name = os.path.basename(pdf_path)
-    fname = os.path.splitext(pdf_name)[0]
-    output_path = os.path.join(output_path, fname)
-    os.makedirs(output_path, exist_ok=False)
+        logger.warning('no output path provided, using cwd')
+    elif str(output_path).endswith('.md'):
+        output_path, fname = os.path.split(output_path)
+        fname = os.path.splitext(fname)[0]
+    else:
+        # infer the rest of the needed filepaths
+        pdf_name = os.path.basename(pdf_path)
+        fname = os.path.splitext(pdf_name)[0]
+        output_path = os.path.join(output_path, fname)
+        os.makedirs(output_path, exist_ok=False)
+    output_path = str(output_path)
+    fname = str(fname)
+
+
     # set up a config, this could be altered for more flexibility
     config_parser = ConfigParser(extractor_ollama_config)
 
-    converter = PdfConverter(
-        config=config_parser.generate_config_dict(),
-        artifact_dict=create_model_dict(),
-        processor_list=config_parser.get_processors(),
-        renderer=config_parser.get_renderer(),
-        llm_service=config_parser.get_llm_service()
-    )
-    rendered = converter(pdf_path)
-    save_output(rendered,
-                output_path,
-                fname)
-    print('finished')
+    try:
+        converter = PdfConverter(
+            config=config_parser.generate_config_dict(),
+            artifact_dict=create_model_dict(),
+            processor_list=config_parser.get_processors(),
+            renderer=config_parser.get_renderer(),
+            llm_service=config_parser.get_llm_service()
+        )
+        rendered = converter(pdf_path)
+        save_output(rendered,
+                    output_path,
+                    fname)
+        return 1
+    except Exception as e:
+        logger.error(e)
+        return 0
 
 def main():
     """

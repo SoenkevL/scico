@@ -1,14 +1,15 @@
 """File to set up Zotero MCP"""
-from pyzotero import zotero
 import os
+
 from dotenv import load_dotenv
-from fastmcp import FastMCP
+from pyzotero import zotero
 
 # Setup
 load_dotenv()
 zot = zotero.Zotero(os.getenv("ZOTERO_ID"), "user", os.getenv("ZOTERO_API_KEY"))
 
-# Tool functions
+
+# Public
 def get_item_count() -> int:
     """ Returns the number of items in the Zotero Library of the user"""
     return int(zot.count_items())
@@ -38,16 +39,24 @@ def get_item_metadata(item_id:str, metadata_parser=True) -> dict:
     """ Returns the metadata of a single item from the Zotero Library of the user using its ID"""
     item = zot.item(item_id)
     if metadata_parser:
-        metadata = parse_item(item)
+        metadata = _parse_item(item)
         return metadata
     return item
+
+
+def get_local_pdf_path_from_item_id(item_id: str) -> str:
+    """Find the local pdf based on the item_id"""
+    local_id = _local_pdf_id_from_item_id(item_id)
+    return _pdf_path_from_local_pdf_id(local_id)
 
 def get_fulltext_item(item_id:str) -> str:
     """ Returns the full text of a single item from the Zotero Library using the item ID"""
     fulltext = zot.fulltext_item(item_id)
     return fulltext.get('content', '')
 
-def local_pdf_id_from_item_id(item_id: str) -> str:
+
+# Private
+def _local_pdf_id_from_item_id(item_id: str) -> str:
     item = zot.item(item_id)
     links = item.get('links', {})
     attachment = links.get('attachment', {})
@@ -57,7 +66,8 @@ def local_pdf_id_from_item_id(item_id: str) -> str:
     local_id = href.split(os.sep)[-1]
     return local_id
 
-def pdf_path_from_local_pdf_id(local_id: str) -> str:
+
+def _pdf_path_from_local_pdf_id(local_id: str) -> str:
     storage_path = os.path.join(os.getenv('LOCAL_ZOTERO_PATH'), 'storage', local_id)
     if not (files := os.listdir(storage_path)):
         return ''
@@ -67,25 +77,23 @@ def pdf_path_from_local_pdf_id(local_id: str) -> str:
             return pdf_path
     return ''
 
-def local_pdf_path_from_item_id(item_id: str) -> (str, str):
-    """Find the local pdf based on the item_id"""
-    local_id = local_pdf_id_from_item_id(item_id)
-    return pdf_path_from_local_pdf_id(local_id)
 
-#parsers for dicts
-def parse_creators(creators:dict) -> str:
+## parsers for dicts
+def _parse_creators(creators: dict) -> str:
     authors = ''
     for author in creators:
         authors += f'{author.get("lastName")}, {author.get("firstName")}; '
     return authors.strip()
 
-def parse_tags(tags:dict) -> str:
+
+def _parse_tags(tags: dict) -> str:
     tag_string = ''
     for tag in tags:
-        tag_string += f'{tag.get("name")}; '
+        tag_string += f'{tag.get("tag")}; '
     return tag_string.strip()
 
-def parse_extra_to_citation_key(extra:dict) -> str:
+
+def _parse_extra_to_citation_key(extra: dict) -> str:
     citation_key = ''
     for line in extra.split('\n'):
         if line.startswith('Citation Key: '):
@@ -93,28 +101,37 @@ def parse_extra_to_citation_key(extra:dict) -> str:
             return citation_key
     return citation_key
 
-def parse_links(links:dict) -> str:
+
+def _parse_links(links: dict) -> str:
     attachment = links.get('attachment', {})
     if not attachment.get('attachmentType') == 'application/pdf':
         return ''
     href = attachment.get('href', '')
     local_id = href.split(os.sep)[-1]
-    return pdf_path_from_local_pdf_id(local_id)
+    return _pdf_path_from_local_pdf_id(local_id)
 
-def parse_item(item:dict) -> dict:
+
+def _parse_collections(collections: list) -> str:
+    return '; '.join(collections)
+
+
+def _parse_item(item: dict) -> dict:
     mdata = item.get('data')
     parsed_dict = {
         'title': mdata.get('title'),
-        'authors': parse_creators(mdata.get('creators', [])),
+        'authors': _parse_creators(mdata.get('creators', [])),
         'abstract': mdata.get('abstractNote'),
-        'TAGS': parse_tags(mdata.get('TAGS', [])),
-        'citation_key': parse_extra_to_citation_key(mdata.get('extra')),
+        'tags': _parse_tags(mdata.get('tags', [])),
+        'collections': _parse_collections(mdata.get('collections', [])),
+        'citation_key': _parse_extra_to_citation_key(mdata.get('extra', '')),
         'doi': mdata.get('DOI'),
         'date': mdata.get('date'),
-        'attachments': parse_links(item.get('links', {})),
+        'attachments': _parse_links(item.get('links', {})),
     }
     return parsed_dict
 
 
 if __name__ == "__main__":
-    print('no main function implemented for Zotero')
+    # For the indexing workflow, use the new ZoteroClient
+    print("For PDF indexing, use: from zotero_client import ZoteroClient")
+    print("For MCP tools, the existing functions above are still available")

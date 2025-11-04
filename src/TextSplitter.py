@@ -1,30 +1,39 @@
 import json
+import logging
 import os
 import uuid
+from os import PathLike
 from pprint import pformat
-from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
-from langchain_experimental.text_splitter import SemanticChunker
-from langchain_ollama import OllamaEmbeddings
+from typing import Optional
+
 from langchain_core.documents import Document
-from utils.configs import headers_to_split_on
+from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
+from semantic_chunkers.chunkers import StatisticalChunker
+from semantic_router.encoders import OllamaEncoder
+
+from src.utils.configs import headers_to_split_on
+
+logger = logging.getLogger(__name__)
 
 class MarkdownChunker:
-    def load_markdown(self, md_path):
-        md_path = md_path if md_path else self.md_path
-        with open(md_path, 'r') as md:
-            f = md.read()
-        return f
 
-    def __init__(self, md_path=None, chunk_size=150, chunk_overlap=50):
-        self.md_path: str = str(md_path) if md_path else None
+    def __init__(self, md_path: PathLike = None, chunk_size: int = 1000, chunk_overlap: int = 50):
+        self.md_path: str = str(md_path)
         self.headers_to_split_on = headers_to_split_on
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.splits = None
+        logger.info("MarkdownChunker initialized")
 
-    def chunk(self, md_path=None, method='markdown+recursive', annotate_tables=True, numerate_splits=True, add_length_to_splits=True):
+    def set_markdown(self, md_path: PathLike):
+        self.md_path = str(md_path)
+
+    def chunk(self, md_path: PathLike = None, method: str = 'markdown+recursive', add_uid: bool = True,
+              annotate_tables: bool = True, numerate_splits: bool = True, add_length_to_splits: bool = True,
+              metadata: Optional[dict] = None):
         md_path = md_path if md_path else self.md_path
-        plaintextstring = self.load_markdown(md_path)
+        logger.info(f"Chunking Markdown file: {md_path}")
+        plaintextstring = self._load_markdown(md_path)
         if method=='markdown+recursive':
             #initialize splitters
             markdown_splitter = MarkdownHeaderTextSplitter(
@@ -38,28 +47,46 @@ class MarkdownChunker:
             # Split
             md_header_splits = markdown_splitter.split_text(plaintextstring)
             splits = text_splitter.split_documents(md_header_splits)
-        elif method=='markdown+semantic':
-            markdown_splitter = MarkdownHeaderTextSplitter(
-                headers_to_split_on=self.headers_to_split_on,
-                return_each_line=True
-            )
-            embedding = OllamaEmbeddings(model='nomic-embed-text')
-            semantic_splitter = SemanticChunker(embedding)
-            md_header_splits = markdown_splitter.split_text(plaintextstring)
-            splits = semantic_splitter.split_documents(md_header_splits)
+        elif method == 'semantic':
+            embedding = OllamaEncoder(name='nomic-embed-text')
+            semantic_splitter = StatisticalChunker(embedding)
+            splits: list[Document] = semantic_splitter(docs=[plaintextstring])
         else:
+            logger.error(f"Invalid method: {method}")
             raise Exception("Invalid method. Please choose from 'markdown+recursive' or 'markdown+semantic'")
         # Annotate splits
+        if add_uid:
+            splits = self._add_uid_to_splits(splits)
         if annotate_tables:
-            splits = self.annotate_tables_splits(splits)
+            splits = self._annotate_tables_splits(splits)
         if numerate_splits:
-            splits = self.numerate_splits(splits)
+            splits = self._numerate_splits(splits)
         if add_length_to_splits:
-            splits = self.add_length_to_splits(splits)
+            splits = self._add_length_to_splits(splits)
+        if metadata:
+            splits = self._add_additional_metadata(metadata, splits)
         self.splits = splits
         return splits
 
-    def numerate_splits(self, splits=None):
+    # save the splits to a file
+    def save_splits_to_txt(self, splits: Optional[list[Document]] = None):
+        splits = splits if splits else self.splits
+        mdpath, mdname = os.path.split(self.md_path)
+        outname = 'chunks.txt'
+        outpath = os.path.join(mdpath, outname)
+        with open(outpath, 'w') as f:
+            for split in splits:
+                f.write(pformat(split, indent=4, compact=True))
+                f.write('\n')
+
+    def save_splits_to_json(self, splits: Optional[list[Document]] = None):
+        splits = splits if splits else self.splits
+        mdpath, mdname = os.path.split(self.md_path)
+        outname = 'chunks.json'
+        outpath = os.path.join(mdpath, outname)
+        json.dump(splits, open(outpath, 'w'), indent=4)
+
+    def _numerate_splits(self, splits: Optional[list[Document]] = None) -> Optional[list[Document]]:
         splits = splits if splits else self.splits
         if not splits:
             raise Exception("No splits found. Please run chunk() first.")
@@ -67,7 +94,15 @@ class MarkdownChunker:
             split.metadata['split_id'] = i
         return splits
 
-    def add_length_to_splits(self, splits=None):
+    def _add_uid_to_splits(self, splits: Optional[list[Document]] = None) -> Optional[list[Document]]:
+        splits = splits if splits else self.splits
+        if not splits:
+            raise Exception("No splits found. Please run chunk() first.")
+        for split in splits:
+            split.id = str(uuid.uuid4().hex)
+        return splits
+
+    def _add_length_to_splits(self, splits: Optional[list[Document]] = None) -> Optional[list[Document]]:
         splits = splits if splits else self.splits
         if not splits:
             raise Exception("No splits found. Please run chunk() first.")
@@ -75,7 +110,7 @@ class MarkdownChunker:
             split.metadata['length'] = len(split.page_content)
         return splits
 
-    def annotate_tables_splits(self, splits=None):
+    def _annotate_tables_splits(self, splits: Optional[list[Document]] = None) -> Optional[list[Document]]:
         splits = splits if splits else self.splits
         if not splits:
             raise Exception("No splits found. Please run chunk() first.")
@@ -101,57 +136,20 @@ class MarkdownChunker:
                 chunk.metadata['table'] = False
         return splits
 
-    def add_additional_metadata(self, metadata, splits=None):
+    def _add_additional_metadata(self, metadata, splits: Optional[list[Document]] = None) -> Optional[list[Document]]:
+        splits = splits if splits else self.splits
         if not splits:
             raise Exception("No splits found. Please run chunk() first.")
         for split in splits:
             split.metadata = {**split.metadata, **metadata}
         return splits
 
-   # old functions before transitioning to langchain
-    def chunks_to_langchain_documents(self, chunks = None):
-        chunks = chunks if chunks else self.splits
-        if not chunks:
-            raise Exception("No chunks found. Please run chunk() first.")
-        documents = []
-        for chunk in chunks:
-            documents.append(Document(page_content=chunk["page_content"], metadata=chunk["metadata"]))
-        return documents
+    def _load_markdown(self, md_path: PathLike) -> str:
+        md_path = md_path if md_path else self.md_path
+        with open(md_path, 'r') as md:
+            f = md.read()
+        return f
 
-    def add_metadata_to_splits_and_convert_to_dict(self, splits):
-        new_splits = []
-        for i, split in enumerate(splits):
-            split_metadata = split.metadata
-            additonal_metadata = {
-                'filename': os.path.basename(self.md_path),
-                'split_id': i,
-            }
-            metadata = {**split_metadata, **additonal_metadata}
-            new_split = {
-                'split_uid': str(uuid.uuid4().hex),
-                'page_content': split.page_content,
-                'metadata': metadata
-            }
-            new_splits.append(new_split)
-        return new_splits
-
-    # save the splits to a file
-    def save_splits_to_txt(self, splits=None):
-        splits = splits if splits else self.splits
-        mdpath, mdname = os.path.split(self.md_path)
-        outname = 'chunks.txt'
-        outpath = os.path.join(mdpath, outname)
-        with open(outpath, 'w') as f:
-            for split in splits:
-                f.write(pformat(split, indent=4, compact=True))
-                f.write('\n')
-
-    def save_splits_to_json(self, splits=None):
-        splits = splits if splits else self.splits
-        mdpath, mdname = os.path.split(self.md_path)
-        outname = 'chunks.json'
-        outpath = os.path.join(mdpath, outname)
-        json.dump(splits, open(outpath, 'w'), indent=4)
 
 def main():
     import argparse
