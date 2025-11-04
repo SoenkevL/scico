@@ -28,7 +28,6 @@ from Zotero import (
     get_collection_items,
     get_item_metadata,
     get_fulltext_item,
-    local_pdf_path_from_item_id
 )
 
 # Load environment variables
@@ -164,22 +163,6 @@ def get_item_fulltext(item_id: str) -> str:
 
 
 @tool
-def get_pdf_path(item_id: str) -> str:
-    """
-    Get the local file system path to the PDF attachment of an item.
-    
-    Args:
-        item_id: The unique ID of the item to get PDF path for.
-    
-    Returns:
-        String containing the absolute local file path to the PDF, or empty string if not found.
-    
-    Use this when the user needs to access the PDF file directly or pass it to other tools.
-    """
-    return local_pdf_path_from_item_id(item_id)
-
-
-@tool
 def search_collections_by_topic(
     topic: str,
 ) -> dict[str, str]:
@@ -292,7 +275,6 @@ class ZoteroLibrarian:
             get_items_in_collection,
             get_metadata,
             get_item_fulltext,
-            get_pdf_path
         ]
         
         # Set up memory (in-memory for development, use persistent in production)
