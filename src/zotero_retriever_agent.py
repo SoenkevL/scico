@@ -207,6 +207,7 @@ class ZoteroRetriever:
             answer_string = ""
             if hasattr(last_message, 'content'):
                 return last_message.content
+            # TODO: find out more about how termination of the agent loop works
             elif hasattr(last_message, 'finalanswer'):
                 return last_message.finalanswer
             else:
