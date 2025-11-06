@@ -20,4 +20,5 @@ dependencies = [
     "semantic-chunkers>=0.1.1",
     "langchain-chroma>=1.0.0",
     "streamlit>=1.51.0",
+    "langchain-openai>=1.0.2",
 ]
