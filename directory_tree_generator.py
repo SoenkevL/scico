@@ -2,7 +2,6 @@
 Generate directory tree structure for markdown documentation
 """
 
-import os
 from pathlib import Path
 
 
@@ -107,8 +106,7 @@ def generate_src_tree_markdown(
     # File descriptions for common scico files
     descriptions = {
         'Main_MCP.py': 'Central orchestration & MCP server',
-        'Zotero_MCP.py': 'Research library interface (MCP)',
-        'Zotero.py': 'Zotero API functions',
+        'zotero_client.py': 'Zotero API functions',
         'PdfToMarkdown.py': 'PDF to Markdown converter',
         'TextSplitter.py': 'Document chunking & splitting',
         'VectorStorage_MCP.py': 'Vector database & RAG',
