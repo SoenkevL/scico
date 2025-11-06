@@ -10,18 +10,18 @@ This class coordinates:
 
 import logging
 import os
-from pathlib import Path
-from typing import List, Dict, Any, Tuple, Optional
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+from typing import List, Dict, Any, Tuple, Optional
 
 from langchain_core.documents import Document
 
+from src.VectorStorage import ChromaStorage
+from src.document_processing.PdfToMarkdown import convert_pdf_to_markdown
+from src.document_processing.TextSplitter import MarkdownChunker
 # These imports would reference your existing modules
 from src.zotero_client import ZoteroClient
-from src.PdfToMarkdown import convert_pdf_to_markdown
-from src.TextSplitter import MarkdownChunker
-from src.VectorStorage import ChromaStorage
 
 logger = logging.getLogger(__name__)
 
