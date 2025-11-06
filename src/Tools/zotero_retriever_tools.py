@@ -95,10 +95,10 @@ def semantic_search(
         runtime: Injected runtime context with vector storage and preferences.
 
     Returns:
-        List of Document objects with content and metadata, ordered by relevance.
+        A structured string of relevant information using the following format:
+        <title>\n<content>\n<metadata>\n\n...
 
-    Use this as the PRIMARY tool for answering questions about document content.
-    Always call this tool first to retrieve relevant context before generating answers.
+    Use this as the PRIMARY tool for answering single and simple questions.
     """
     storage = runtime.context.vector_storage
     k = runtime.context.k_documents
@@ -127,7 +127,8 @@ def search_by_item(
         runtime: Injected runtime context with vector storage and preferences.
 
     Returns:
-        List of Document objects from the specified item, ordered by relevance.
+        A structured string of relevant information using the following format:
+        <title>\n<content>\n<metadata>\n\n...
 
     Use this when the user asks about a specific paper or item by name or ID.
     """
@@ -205,10 +206,11 @@ def multi_query_search(
         queries: List of related search queries to execute.
         runtime: Injected runtime context with vector storage and preferences.
 
-    Returns:
-        Combined list of unique Document objects from all queries.
+     Returns:
+        A structured string of relevant information using the following format:
+        <title>\n<content>\n<metadata>\n\n...
 
-    Use this for complex questions that might need multiple perspectives,
+    Use this as the PRIMARY tool for complex questions that might need multiple perspectives and with optimized semantic searches,
     or to ensure comprehensive coverage of a topic.
     """
     storage = runtime.context.vector_storage
