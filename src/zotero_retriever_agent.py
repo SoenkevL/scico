@@ -9,6 +9,8 @@ memory, structured outputs with sources, and runtime context.
 import sys
 from pathlib import Path
 
+from langchain.agents.middleware import ModelCallLimitMiddleware
+
 project_root = Path(__file__).parent.parent.resolve()
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
@@ -18,7 +20,7 @@ import os
 from typing import Optional
 
 from dotenv import load_dotenv
-from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 
@@ -77,12 +79,16 @@ class ZoteroRetriever:
                                             embedding_model=vector_storage_config.embedding_model)
 
         # Initialize LLM
-        self.model = ChatOllama(
-            model=model_name,
-            temperature=temperature,
-            base_url=base_url or os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-        )
+        # self.model = ChatOllama(
+        #     model=model_name,
+        #     temperature=temperature,
+        #     base_url=base_url or os.getenv('ollama_base_url', 'http://localhost:11434')
+        # )
 
+        self.model = ChatOpenAI(
+            model='gpt-4.1-mini',
+            temperature=temperature,
+        )
         # Define retrieval tools
         self.tools = [
             semantic_search,
@@ -94,6 +100,7 @@ class ZoteroRetriever:
             think
         ]
 
+        # ignored by ollama
         self.model.bind_tools(self.tools, tool_choice='any')
 
         # Set up memory
@@ -104,8 +111,14 @@ class ZoteroRetriever:
             model=self.model,
             system_prompt=SYSTEM_PROMPT,
             tools=self.tools,
+            middleware=[
+                ModelCallLimitMiddleware(
+                    run_limit=10,
+                    thread_limit=15,
+                    exit_behavior="end"
+                )
+            ],
             context_schema=RetrieverContext,
-            # response_format=RetrievalResponse,  # Always structured
             checkpointer=self.checkpointer
         )
 
