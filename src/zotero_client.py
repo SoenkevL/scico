@@ -16,7 +16,6 @@ from pyzotero import zotero
 
 logger = logging.getLogger(__name__)
 
-
 class ZoteroClient:
     """
     Client for interacting with Zotero library to retrieve items for indexing.
@@ -361,15 +360,9 @@ class ZoteroClient:
         return ''
 
 
-# Convenience functions for backward compatibility
-def create_zotero_client() -> ZoteroClient:
-    """Create a ZoteroClient using environment variables."""
-    return ZoteroClient()
-
-
 if __name__ == "__main__":
     # Example usage
-    client = create_zotero_client()
+    client = ZoteroClient()
     print(f"Connected to Zotero library with {client.get_item_count()} items")
 
     # List collections
