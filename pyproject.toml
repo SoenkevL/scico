@@ -21,4 +21,5 @@ dependencies = [
     "langchain-chroma>=1.0.0",
     "streamlit>=1.51.0",
     "langchain-openai>=1.0.2",
+    "langgraph-cli[inmem]>=0.4.7",
 ]
