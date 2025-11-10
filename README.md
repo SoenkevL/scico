@@ -1,6 +1,7 @@
 # 🔬 SciCO - Scientific Co-worker
 
-**A RAG-powered system for semantic search and retrieval from your Zotero library**
+**An AI-assisted research helper that indexes your Zotero PDFs, chunks them, stores semantic vectors, and lets you
+retrieve relevant passages with source attribution.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
@@ -10,15 +11,21 @@
 
 ## 🎯 What is SciCO?
 
-SciCO transforms your Zotero library into an intelligent, searchable knowledge base using Retrieval-Augmented Generation (RAG). Instead of manually searching through dozens of papers, ask questions in natural language and get relevant excerpts from your sources.
+SciCO transforms your Zotero library into an intelligent, searchable knowledge base using Retrieval-Augmented
+Generation (RAG). Instead of manually searching through dozens of papers, ask questions in natural language and get
+relevant excerpts with proper source attribution.
+
+The system focuses on deterministic, reproducible workflows: **PDF → Markdown → chunks → vector store** with optional
+LLM tooling for retrieval and question answering.
 
 ### **Key Features**
 
-✅ **Zotero Integration** - Direct connection to your Zotero SQLite database  
-✅ **PDF Processing** - Converts PDFs to structured markdown with `marker`  
+✅ **Zotero Integration** - Direct connection to your Zotero SQLite database or cloud API  
+✅ **PDF Processing** - Converts PDFs to structured markdown with `marker-pdf`  
 ✅ **Semantic Search** - Uses ChromaDB for vector-based retrieval  
-✅ **Metadata Extraction** - Preserves authors, DOI, tags, and collections  
-✅ **Interactive Tutorial** - Jupyter notebook to learn the system step-by-step  
+✅ **Metadata Extraction** - Preserves authors, DOI, tags, collections, and citation keys  
+✅ **LLM Agent** - LangChain-based retriever agent for answers with cited sources  
+✅ **Web Interface** - Streamlit GUI for browsing collections and indexing items
 
 ---
 
@@ -26,83 +33,125 @@ SciCO transforms your Zotero library into an intelligent, searchable knowledge b
 
 ### **Prerequisites**
 
-1. **Ollama** - Required for PDF processing
+1. **Python 3.13+** - Required for this project
    ```bash
-   # Install from https://ollama.ai
-   # Start Ollama server
-   ollama serve
+   python --version  # Should be 3.13 or higher
    ```
 
 2. **Zotero** - With an existing library
-   - Locate your Zotero data directory (usually `~/Zotero`)
-   - Ensure `zotero.sqlite` exists in this directory
+    - Locate your Zotero data directory (usually `~/Zotero`)
+    - Ensure `zotero.sqlite` exists in this directory
 
-3. **Python 3.13+** with virtualenv
+3. **LLM Backend** (choose at least one):
+    - **Ollama** - For local embeddings and chat
+      ```bash
+      # Install from https://ollama.ai
+      # Start Ollama server
+      ollama serve
+      ```
+    - **OpenAI API** - For cloud-based embeddings and chat (requires API key)
 
 ### **Setup**
 
-```bash
+You can use **uv** (recommended) or **pip**.
+
+#### **Using uv (Recommended)**
+
+```
+bash
+# Clone the repository
+git clone https://github.com/yourusername/scico.git
+cd scico
+
+# Install uv if not already installed
+# See: https://docs.astral.sh/uv/
+
+# Sync dependencies and create virtual environment
+uv sync
+
+# Activate the environment
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
+
+#### **Using pip**
+
+```
+bash
 # Clone the repository
 git clone https://github.com/yourusername/scico.git
 cd scico
 
 # Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install dependencies
-pip install -r requirements.txt
+# Install in editable mode
+pip install -e .
 ```
 
+### **Core Dependencies**
 
-### **Required Python Packages**
+The project uses these major libraries (managed via `pyproject.toml`):
 
 ```
-beautifulsoup4
-click
-jinja2
-kubernetes
-networkx
-numpy
-pillow
-protobuf
-pyyaml
-requests
-scikit-learn
-scipy
-six
-sqlalchemy
-sympy
-chromadb
-langchain-text-splitters
-marker-pdf
-python-dotenv
+
+langchain, langchain-text-splitters, langchain-chroma
+langchain-openai, langchain-ollama
+chromadb                # Vector storage
+marker-pdf              # PDF → Markdown conversion
+sqlalchemy              # Zotero database access
+streamlit               # Web interface
+fastmcp, mcp            # Future tooling integration
+langgraph-cli[inmem]    # Agent deployment
+python-dotenv           # Environment management
+pandas, numpy           # Data handling
 ```
-
-
 ---
 
 ## ⚙️ Configuration
 
 Create a `.env` file in the project root:
 
+```bash
+cp env.example .env
 ```
-# Name of your Zotero collection to process
-COLLECTION_NAME='Your Collection Name'
 
-# Output folder for markdown files
+Then edit `.env` with your settings:
+
+```bash
+# === Paths ===
+# Where Markdown output (converted from PDFs) is written
 MARKDOWN_FOLDER_PATH='/path/to/markdown/output'
 
-# Path to your Zotero data folder (contains zotero.sqlite)
-ZOTERO_LIBRARY_PATH='/path/to/Zotero'
+# Path to Chroma DB storage
+VECTOR_STORAGE_PATH='example/SciCo.db'
 
-# Path for the ChromaDB vector database
-INDEX_PATH='/path/to/chroma.db'
+# Path to your Zotero data directory (contains zotero.sqlite)
+LOCAL_ZOTERO_PATH='/path/to/Zotero'
 
-# (Optional) Test PDF for development
-TEST_PDF_PATH='/path/to/test/paper.pdf'
+# === Zotero Cloud API (recommended) ===
+ZOTERO_API_KEY=
+ZOTERO_ID=
+
+# === Ollama (optional) ===
+OLLAMA_BASE_URL='http://localhost:11434'
+OLLAMA_EMBEDDING_MODEL='nomic-embed-text'
+OLLAMA_CHAT_MODEL='gpt-oss:latest'
+
+# === OpenAI (optional) ===
+OPENAI_API_KEY=  # Required if you set MODEL_PROVIDER=openai
+
+# === LangSmith (optional telemetry) ===
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_ENDPOINT='https://api.smith.langchain.com'
+LANGCHAIN_API_KEY=
+LANGCHAIN_PROJECT='SciCo'
+
+# === Agent Model Settings (optional) ===
+MODEL_NAME=  # Defaults vary by provider
+MODEL_PROVIDER='ollama'  # or 'openai'
+MODEL_TEMPERATURE=0.0
 ```
-
 
 ### **Finding Your Zotero Path**
 
@@ -116,42 +165,75 @@ Inside this folder, you should see `zotero.sqlite`.
 
 ## 🚀 Quick Start
 
-### **Option 1: Interactive Tutorial (Recommended)**
+### **Option 1: Streamlit Web Interface (Recommended)**
 
-The easiest way to get started:
+The easiest way to get started - a GUI to browse collections and index PDFs:
 
 ```shell script
-jupyter notebook SciCO_Interactive_Tutorial.ipynb
+streamlit run src/Frontend/ZoteroPdfIndexerApp.py
 ```
 
+This interface lets you:
 
-This notebook walks you through:
-1. Configuration validation
-2. Connecting to Zotero
-3. Processing a sample PDF
-4. Creating embeddings
-5. Performing semantic searches
+1. Browse your Zotero collections
+2. Select items to index
+3. Monitor processing progress
+4. Search your indexed documents
 
-### **Option 2: Command Line**
+### **Option 2: Programmatic Usage**
+
+Minimal example for indexing and searching:
 
 ```python
 from pathlib import Path
-from MainProcessor import MainProcessor
-import os
+from src.ZoteroPdfIndexer import IndexingConfig, PdfIndexer
 
-# Initialize processor
-processor = MainProcessor(collection_name="YourCollection")
+# Configure indexer
+config = IndexingConfig(
+    markdown_base_path=Path("example/markdown-library"),
+    force_reindex=False,
+    skip_existing_markdown=True,
+    chunk_size=1000,
+    chunk_overlap=200,
+    chunking_strategy="markdown+recursive",
+)
+indexer = PdfIndexer(config)
 
-# Query your knowledge base
-results = processor.query_vector_storage(
-    ["What is the main hypothesis?"],
-    n_results=5
+# Index a collection
+result = indexer.index_by_collection_name("Your Collection Name")
+print(result)
+
+# Search
+docs = indexer.search("What is integrated information theory?", n_results=5)
+for d in docs:
+    print(f"Title: {d.metadata.get('title')}")
+    print(f"Excerpt: {d.page_content[:200]}...\n")
+```
+
+### **Option 3: AI Agent with Citations**
+
+Use the LangChain-based retriever agent for answers with source attribution:
+
+```python
+from src.zotero_retriever_agent import ZoteroRetriever
+from src.configs.zotero_retriever_configs import VectorStorageConfig
+
+retriever = ZoteroRetriever(
+    vector_storage_config=VectorStorageConfig(),
+    model_name="gpt-oss:latest",  # Or OpenAI model
+    provider="ollama",  # or "openai"
+    temperature=0.0,
 )
 
-# Display results
-for doc, meta in zip(results['documents'][0], results['metadatas'][0]):
-    print(f"Source: {meta['filename']}")
-    print(f"Content: {doc[:200]}...\n")
+result = retriever.invoke(
+    "Summarize the core idea behind IIT with citations.",
+    thread_id="session-1",
+    user_id="alice",
+    k_documents=8,
+    relevance_threshold=1.0,
+)
+
+print(retriever.get_response(result))
 ```
 
 
@@ -162,64 +244,82 @@ for doc, meta in zip(results['documents'][0], results['metadatas'][0]):
 ```
 scico/
 ├── src/
-│   ├── ZoteroIntegration.py      # SQLite database connector
-│   ├── PdfToMarkdown.py          # PDF → Markdown conversion
-│   ├── MarkdownChunker.py        # Text splitting & chunking
-│   ├── VectorStorage.py          # ChromaDB wrapper
-│   ├── MainProcessor.py          # Orchestration layer
-│   ├── configs.py                # Configuration settings
-│   ├── Logger.py                 # Logging utilities
-│   └── RAGQuestionOptimizer.py   # [WIP] Query optimization
+│   ├── ZoteroPdfIndexer.py           # High-level orchestrator (index/search)
+│   ├── VectorStorage.py              # ChromaDB wrapper
+│   ├── zotero_client.py              # Zotero access + metadata + PDF resolution
+│   ├── zotero_retriever_agent.py     # LangChain agent with citations
+│   │
+│   ├── document_processing/
+│   │   ├── PdfToMarkdown.py          # PDF → Markdown conversion
+│   │   └── TextSplitter.py           # MarkdownChunker (chunking)
+│   │
+│   ├── Tools/
+│   │   ├── general_tools.py
+│   │   ├── zotero_retriever_tools.py
+│   │   └── zotero_librarian_tools.py
+│   │
+│   ├── Frontend/
+│   │   └── ZoteroPdfIndexerApp.py    # Streamlit UI
+│   │
+│   ├── Prompts/                      # Prompt templates
+│   │
+│   └── configs/
+│       ├── chunking_config.py
+│       ├── pdf_extractor_config.py
+│       └── zotero_retriever_configs.py
 │
-├── SciCO_Interactive_Tutorial.ipynb  # Step-by-step guide
-├── .env                              # Your configuration (create this)
+├── tutorials/                         # Tutorials and examples
+├── pyproject.toml                     # Project metadata (PEP 621)
+├── uv.lock                           # uv lock file
+├── langgraph.json                    # LangGraph CLI config
+├── env.example                       # Environment template
+├── system_prompt_generator.py        # Generates LLM_INSTRUCTIONS.md
+├── directory_tree_generator.py       # Project tree utility
 └── README.md                         # This file
 ```
 
 
 ---
 
-## 🔧 Components
+## 🔧 Core Components
 
-### **1. ZoteroIntegration**
+### **1. Zotero Integration**
 
-Connects to your Zotero SQLite database and retrieves:
+Connects to your Zotero SQLite database or cloud API to retrieve:
 - PDF file paths from collections
 - Metadata (title, authors, DOI, abstract, tags)
 - Citation keys (Better BibTeX support)
+- Collections and hierarchy
 
 ```python
-from ZoteroIntegration import ZoteroMetadataRetriever
+from src.zotero_client import ZoteroClient
 
-retriever = ZoteroMetadataRetriever(Path("/path/to/Zotero"))
-retriever.initialize()
-
+client = ZoteroClient()
 # Get all PDFs in a collection
-pdfs = retriever.get_pdfs_in_collection("My Papers")
+items = client.get_collection_items("My Papers")
 
-# Get full metadata for a specific PDF
-metadata = retriever.get_metadata_for_pdf(Path("/path/to/paper.pdf"))
+# Get full metadata for specific item
+metadata = client.get_item_metadata(item_id)
 ```
 
+### **2. PDF to Markdown Conversion**
 
-### **2. PdfToMarkdown**
-
-Uses `marker` library with Ollama to convert PDFs to structured markdown:
+Uses `marker-pdf` library to convert PDFs to structured markdown:
 - Preserves formatting and structure
 - Extracts images
 - Uses LLM for enhanced OCR and layout understanding
 
 ```python
-from PdfToMarkdown import convert_pdf_to_markdown
+from src.document_processing.PdfToMarkdown import PdfToMarkdownConverter
 
-convert_pdf_to_markdown(
+converter = PdfToMarkdownConverter()
+markdown = converter.convert(
     pdf_path="/path/to/paper.pdf",
     output_path="/path/to/output"
 )
 ```
 
-
-### **3. MarkdownChunker**
+### **3. Text Chunking**
 
 Splits markdown into semantic chunks using:
 - Header-based splitting (H1-H7)
@@ -227,34 +327,34 @@ Splits markdown into semantic chunks using:
 - Configurable chunk size and overlap
 
 ```python
-from MarkdownChunker import MarkdownChunker
+from src.document_processing.TextSplitter import MarkdownChunker
 
 chunker = MarkdownChunker(
-    md_path="paper.md",
-    chunk_size=150,
-    chunk_overlap=50
+    chunk_size=1000,
+    chunk_overlap=200,
+    strategy='markdown+recursive'
 )
-chunks = chunker.chunk(method='markdown+recursive')
+chunks = chunker.chunk(markdown_text)
 ```
 
-
-### **4. VectorStorage**
+### **4. Vector Storage**
 
 ChromaDB wrapper for embedding and retrieval:
 - Automatic embedding generation
 - Persistent storage
 - Semantic similarity search
+- Efficient deletion/update by item_id
 
 ```python
-from VectorStorage import ChromaStorage
+from src.VectorStorage import ChromaStorage
 
 storage = ChromaStorage(
-    index_path="/path/to/chroma.db",
+    persist_path="/path/to/chroma.db",
     collection_name="MyCollection"
 )
 
 # Add documents
-storage.add_documents(chunks)
+storage.add_documents(chunks, metadatas=metadata_list)
 
 # Query
 results = storage.query(
@@ -263,16 +363,28 @@ results = storage.query(
 )
 ```
 
+### **5. High-Level Indexer**
 
-### **5. MainProcessor**
-
-High-level orchestration class that ties everything together.
+Orchestrates the entire pipeline from PDF to searchable vectors:
 
 ```python
-from MainProcessor import MainProcessor
+from src.ZoteroPdfIndexer import PdfIndexer, IndexingConfig
 
-processor = MainProcessor(collection_name="Papers")
-results = processor.query_vector_storage(["your question"])
+config = IndexingConfig(
+    markdown_base_path=Path("output/markdown"),
+    force_reindex=False,
+    skip_existing_markdown=True,
+)
+
+indexer = PdfIndexer(config)
+
+# Index by various methods
+indexer.index_by_collection_name("Important Papers")
+indexer.index_by_item_id("ABCD1234")
+indexer.index_by_item_name("My Paper Title")
+
+# Search
+docs = indexer.search("your question", n_results=5)
 ```
 
 
@@ -284,20 +396,22 @@ results = processor.query_vector_storage(["your question"])
 
 ```python
 from pathlib import Path
-from PdfToMarkdown import convert_pdf_to_markdown
-from MarkdownChunker import MarkdownChunker
-from VectorStorage import ChromaStorage
+from src.document_processing.PdfToMarkdown import PdfToMarkdownConverter
+from src.document_processing.TextSplitter import MarkdownChunker
+from src.VectorStorage import ChromaStorage
 
 # 1. Convert PDF to markdown
-convert_pdf_to_markdown("paper.pdf", "output/")
+converter = PdfToMarkdownConverter()
+md_path = converter.convert("paper.pdf", "output/")
 
 # 2. Chunk the markdown
-chunker = MarkdownChunker("output/paper/paper.md")
-chunks = chunker.chunk()
+chunker = MarkdownChunker(chunk_size=1000, chunk_overlap=200)
+with open(md_path) as f:
+    chunks = chunker.chunk(f.read())
 
 # 3. Add to vector database
 storage = ChromaStorage("index.db", "MyCollection")
-storage.add_documents(chunks)
+storage.add_documents([c.page_content for c in chunks])
 
 # 4. Search
 results = storage.query(["What is the methodology?"], n_results=3)
@@ -307,43 +421,61 @@ results = storage.query(["What is the methodology?"], n_results=3)
 ### **Example 2: Process an Entire Zotero Collection**
 
 ```python
-from ZoteroIntegration import ZoteroMetadataRetriever
-from MainProcessor import MainProcessor
-import os
+from src.ZoteroPdfIndexer import PdfIndexer, IndexingConfig
+from pathlib import Path
 
-# Get all PDFs from a collection
-retriever = ZoteroMetadataRetriever(Path(os.getenv('ZOTERO_LIBRARY_PATH')))
-retriever.initialize()
-pdfs = retriever.get_pdfs_in_collection("Important Papers")
+# Configure indexer
+config = IndexingConfig(
+    markdown_base_path=Path("output/markdown"),
+    force_reindex=False,  # Skip already indexed PDFs
+    skip_existing_markdown=True,  # Reuse existing markdown
+    chunk_size=1000,
+    chunk_overlap=200,
+)
 
-# Process each PDF (see Interactive Tutorial for full implementation)
-processor = MainProcessor("Important Papers")
+# Initialize and index
+indexer = PdfIndexer(config)
+result = indexer.index_by_collection_name("Important Papers")
 
-for pdf in pdfs:
-    if pdf['pdf_path']:
-        # Convert, chunk, and add to vector DB
-        # (implementation in tutorial notebook)
-        pass
+print(f"Indexed: {result['success']}")
+print(f"Failed: {result['failed']}")
 ```
 
-
-### **Example 3: Search and Display Results**
+### **Example 3: Search with AI Agent**
 
 ```python
-storage = ChromaStorage("index.db", "MyCollection")
+from src.zotero_retriever_agent import ZoteroRetriever
 
-query = "How was consciousness measured?"
-results = storage.query([query], n_results=5)
+# Initialize agent
+retriever = ZoteroRetriever(
+    model_name="gpt-4",
+    provider="openai",
+    temperature=0.0,
+)
 
-for doc, metadata, distance in zip(
-    results['documents'][0],
-    results['metadatas'][0],
-    results['distances'][0]
-):
-    similarity = 1 / (1 + distance)
-    print(f"Similarity: {similarity:.2%}")
-    print(f"Source: {metadata['filename']}")
-    print(f"Content: {doc[:300]}...\n")
+# Ask a question
+result = retriever.invoke(
+    "How was consciousness measured in these studies?",
+    thread_id="session-1",
+    k_documents=8,
+)
+
+# Get response with citations
+answer = retriever.get_response(result)
+print(answer)
+```
+
+### **Example 4: Browse and Search via Streamlit**
+
+```shell script
+# Start the web interface
+streamlit run src/Frontend/ZoteroPdfIndexerApp.py
+
+# Then:
+# 1. Select a collection from the sidebar
+# 2. Choose items to index
+# 3. Click "Index Selected Items"
+# 4. Use the search interface to query your documents
 ```
 
 
@@ -355,28 +487,33 @@ This project is in **alpha stage**. Here's what works and what doesn't:
 
 ### **✅ Working**
 - Zotero database connection and metadata extraction
-- PDF to markdown conversion (via Ollama + marker)
+- PDF to markdown conversion (via marker-pdf)
 - Semantic chunking with metadata preservation
 - Vector storage and retrieval with ChromaDB
-- Basic query functionality
+- Streamlit web interface for indexing
+- LangChain agent for retrieval with citations
+- Support for both Ollama and OpenAI backends
 
 ### **⚙️ Experimental**
 - Batch processing of multiple PDFs
 - Large collection handling (may be slow)
 - Complex query optimization
+- LangGraph deployment configuration
+- Incremental updates (markdowns are safed and are not re-converted)
+- Search UI in Streamlit based on metadata
 
 ### **🚧 Not Yet Implemented**
-- `RAGQuestionOptimizer.py` - Query refinement with LLMs
-- Answer generation with citations
-- Multi-document synthesis
+
+- Multi-document synthesis and comparison
 - Advanced RAG techniques (reranking, fusion, etc.)
-- Web interface (Streamlit/Gradio)
-- Incremental updates (must reprocess entire PDFs)
+- Comprehensive test suite
+- MCP tool integrations (GitHub, Notion)
+- Export functionality (markdown, PDF reports)
 
 ### **Known Issues**
 1. **Performance**: PDF conversion is slow for large documents (5-10 min per 50-page paper)
 2. **Memory**: Processing many PDFs simultaneously may consume significant RAM
-3. **Ollama Dependency**: Requires Ollama to be running; will fail if unavailable
+3. **Ollama Dependency**: Requires Ollama to be running when using local models; will fail if unavailable
 4. **Zotero Paths**: Some path formats may not be recognized (especially on Windows)
 5. **Error Handling**: Limited graceful degradation in batch operations
 
@@ -387,26 +524,37 @@ This project is in **alpha stage**. Here's what works and what doesn't:
 ### **v0.2 - Core Improvements**
 - [ ] Better error handling and logging
 - [ ] Progress bars for long operations
-- [ ] Incremental updates (process only new PDFs)
+- [ ] Incremental updates (process only new/modified PDFs)
 - [ ] Performance optimizations
+- [ ] Comprehensive test suite
 
-### **v0.3 - Enhanced RAG**
-- [ ] Query optimization with LLMs
-- [ ] Answer generation with source citations
-- [ ] Multi-document synthesis
-- [ ] Reranking and result fusion
+### **v0.3 - Enhanced UI**
 
-### **v0.4 - User Interface**
-- [ ] Web interface (Streamlit)
-- [ ] Chat-like interface
+- [ ] Search interface in Streamlit app
 - [ ] Visualization of retrieved sources
 - [ ] Export functionality (markdown, PDF)
+- [ ] Collection management features
+
+### **v0.4 - Advanced RAG**
+- [ ] Multi-document synthesis
+- [ ] Reranking and result fusion
+- [ ] Query optimization with LLMs
+- [ ] Context-aware chunking strategies
+
+### **v0.5 - Integrations**
+
+- [ ] MCP tool integrations (GitHub, Notion)
+- [ ] LangGraph deployment finalization
+- [ ] API server mode
+- [ ] CLI improvements
 
 ### **v1.0 - Production Ready**
-- [ ] Comprehensive test suite
+
+- [ ] Full test coverage
 - [ ] API documentation
 - [ ] Docker deployment
 - [ ] Performance benchmarks
+- [ ] Production-grade error handling
 
 ---
 
@@ -417,9 +565,10 @@ Contributions are welcome! This is an early-stage project, so there's plenty to 
 ### **Areas Where Help is Needed**
 - Error handling and edge cases
 - Performance optimization
+- Test coverage (unit and integration tests)
 - Documentation improvements
-- Test coverage
-- UI/UX design for web interface
+- UI/UX design for Streamlit interface
+- Support for additional embedding models
 
 ### **Development Setup**
 
@@ -429,13 +578,64 @@ git clone https://github.com/yourusername/scico.git
 cd scico
 git checkout -b feature/your-feature
 
-# Install in development mode
+# Install in development mode with uv
+uv sync
+
+# Or with pip
 pip install -e .
+
+# Generate project documentation
+python system_prompt_generator.py
+python directory_tree_generator.py
 
 # Run tests (when available)
 pytest tests/
 ```
 
+
+---
+
+## 🧰 Scripts and Utilities
+
+- **system_prompt_generator.py** - Generates `LLM_INSTRUCTIONS.md` from project metadata and src tree
+- **directory_tree_generator.py** - Renders a markdown tree of project directories
+- **Streamlit app** - Web interface: `streamlit run src/Frontend/ZoteroPdfIndexerApp.py`
+- **LangGraph CLI** - Agent deployment configuration present in `langgraph.json` (documentation TBD)
+
+---
+
+## 🔍 Troubleshooting
+
+### **Common Issues**
+
+**Chroma database errors:**
+
+- Ensure `VECTOR_STORAGE_PATH` points to a writable location
+- Check disk space availability
+
+**Zotero connection problems:**
+
+- Verify `LOCAL_ZOTERO_PATH` points to your Zotero data directory
+- Ensure `zotero.sqlite` exists in that directory
+- Check file permissions
+
+**PDF conversion failures:**
+
+- `marker-pdf` may need additional system dependencies depending on OS
+- Ensure sufficient disk space for temporary files
+- Check PDF is not corrupted
+
+**Embeddings/LLM errors:**
+
+- If using Ollama: Make sure the server is running (`ollama serve`) and models are pulled
+- If using OpenAI: Verify `OPENAI_API_KEY` is set correctly
+- Check `OLLAMA_BASE_URL` or API endpoints are accessible
+
+**Import errors:**
+
+- Ensure virtual environment is activated
+- Try reinstalling: `uv sync --force` or `pip install -e . --force-reinstall`
+- Check Python version matches 3.13+
 
 ---
 
@@ -450,9 +650,11 @@ MIT License - see [LICENSE](LICENSE) file for details.
 Built with:
 - [Marker](https://github.com/VikParuchuri/marker) - PDF to markdown conversion
 - [ChromaDB](https://www.trychroma.com/) - Vector database
+- [LangChain](https://www.langchain.com/) - LLM framework and text splitting
 - [Ollama](https://ollama.ai) - Local LLM inference
 - [SQLAlchemy](https://www.sqlalchemy.org/) - Database ORM
-- [LangChain](https://www.langchain.com/) - Text splitting utilities
+- [Streamlit](https://streamlit.io/) - Web interface
+- [LangGraph](https://www.langchain.com/langgraph) - Agent deployment
 
 ---
 
@@ -465,12 +667,14 @@ Built with:
 
 ## 🎓 Learn More
 
-- See `SciCO_Interactive_Tutorial.ipynb` for a hands-on walkthrough
+- Explore the `tutorials/` directory for hands-on examples
 - Read inline documentation in each module
+- Check `LLM_INSTRUCTIONS.md` for developer context
+- See `ProjectDescription.md` and `ResearchWorkflowOverview.md` for background
 
 ---
 
 **Status**: This project is in active development. Expect breaking changes between versions.
 
 **Version**: 0.1.0-alpha  
-**Last Updated**: 2025-09-30
+**Last Updated**: 2025-11-10
