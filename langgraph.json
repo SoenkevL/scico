@@ -1,0 +1,9 @@
+{
+  "dependencies": [
+    "."
+  ],
+  "graphs": {
+    "agent": "./src/zotero_retriever_agent.py:agent"
+  },
+  "env": ".env"
+}
