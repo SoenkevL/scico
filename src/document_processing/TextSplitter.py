@@ -11,7 +11,7 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharac
 from semantic_chunkers.chunkers import StatisticalChunker
 from semantic_router.encoders import OllamaEncoder
 
-from src.utils.configs import headers_to_split_on
+from src.configs.chunking_config import headers_to_split_on
 
 logger = logging.getLogger(__name__)
 

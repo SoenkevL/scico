@@ -10,7 +10,7 @@ from marker.converters.pdf import PdfConverter
 from marker.models import create_model_dict
 from marker.output import save_output
 
-from src.utils.configs import extractor_ollama_config
+from src.configs.pdf_extractor_config import extractor_ollama_config
 
 logger = logging.getLogger(__name__)
 
