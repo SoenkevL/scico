@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from langchain.agents.middleware import ModelCallLimitMiddleware
+from langchain_ollama import ChatOllama
 
 project_root = Path(__file__).parent.parent.resolve()
 if str(project_root) not in sys.path:
@@ -17,15 +18,13 @@ if str(project_root) not in sys.path:
 
 import logging
 import os
-from typing import Optional
 
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
-from langgraph.checkpoint.memory import InMemorySaver
 
 # Import our VectorStorage
-from VectorStorage import ChromaStorage
+from src.VectorStorage import ChromaStorage
 
 from src.configs.zotero_retriever_configs import VectorStorageConfig, RetrieverContext
 from src.Tools.zotero_retriever_tools import semantic_search, search_by_item, get_item_context, list_indexed_items, \
@@ -41,6 +40,23 @@ load_dotenv()
 # Configure LangSmith tracing (optional but recommended for debugging)
 os.environ["LANGCHAIN_TRACING_V2"] = os.getenv("LANGCHAIN_TRACING_V2", "false")
 os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT", "ZoteroRetriever")
+
+# Initialize vector storage at module level for LangGraph CLI
+_vector_storage_config = VectorStorageConfig()
+_vector_storage = ChromaStorage(
+    index_path=_vector_storage_config.vector_storage_path,
+    collection_name=_vector_storage_config.collection_name,
+    embedding_model=_vector_storage_config.embedding_model
+)
+
+# Initialize default context at module level
+_default_context = RetrieverContext(
+    user_id="default_user",
+    vector_storage=_vector_storage,
+    k_documents=4,
+    relevance_threshold=1.5,
+    preferred_format="markdown"
+)
 
 
 class ZoteroRetriever:
@@ -61,9 +77,9 @@ class ZoteroRetriever:
     def __init__(
             self,
             vector_storage_config: VectorStorageConfig,
-            model_name: str = "gpt-oss:latest",
+            model_name: str = "gpt-4.1-mini",
+            provider: str = "openai",
             temperature: float = 0.0,
-            base_url: Optional[str] = None
     ):
         """
         Initialize the Zotero Retriever agent with vector storage and memory.
@@ -79,16 +95,20 @@ class ZoteroRetriever:
                                             embedding_model=vector_storage_config.embedding_model)
 
         # Initialize LLM
-        # self.model = ChatOllama(
-        #     model=model_name,
-        #     temperature=temperature,
-        #     base_url=base_url or os.getenv('ollama_base_url', 'http://localhost:11434')
-        # )
+        if provider == "ollama":
+            self.model = ChatOllama(
+                model=model_name,
+                temperature=temperature,
+                base_url=os.getenv('ollama_base_url', 'http://localhost:11434')
+            )
+        elif provider == "openai":
+            self.model = ChatOpenAI(
+                model=model_name,
+                temperature=temperature,
+            )
+        else:
+            raise ValueError(f"Unsupported provider: {provider}")
 
-        self.model = ChatOpenAI(
-            model='gpt-4.1-mini',
-            temperature=temperature,
-        )
         # Define retrieval tools
         self.tools = [
             semantic_search,
@@ -104,7 +124,7 @@ class ZoteroRetriever:
         self.model.bind_tools(self.tools, tool_choice='any')
 
         # Set up memory
-        self.checkpointer = InMemorySaver()
+        # self.checkpointer = InMemorySaver()
 
         # Create agent with structured output (REQUIRED for source attribution)
         self.agent = create_agent(
@@ -119,7 +139,6 @@ class ZoteroRetriever:
                 )
             ],
             context_schema=RetrieverContext,
-            checkpointer=self.checkpointer
         )
 
     def invoke(
@@ -159,9 +178,9 @@ class ZoteroRetriever:
         logger.info(f'invoking agent with query: {query}')
         result = self.agent.invoke(
             {"messages": [{"role": "user", "content": query}]},
-            config=config,
             context=context,
-            tool_choice="any"
+            tool_choice="any",
+            config=config
         )
 
         return result
@@ -230,7 +249,7 @@ class ZoteroRetriever:
 
 # ===== Usage Example =====
 
-def main():
+def local_test():
     """Demo the Zotero Retriever agent with RAG capabilities."""
 
     print("=" * 70)
@@ -293,5 +312,11 @@ def main():
     print("=" * 70)
 
 
-if __name__ == "__main__":
-    main()
+# Create the agent at module level for LangGraph CLI deployment
+# Do NOT pass checkpointer - the LangGraph server handles persistence automatically
+agent = ZoteroRetriever(
+    model_name=os.getenv("MODEL_NAME", "gpt-4o-mini"),
+    provider=os.getenv("MODEL_PROVIDER", "openai"),
+    vector_storage_config=_vector_storage_config,
+    temperature=float(os.getenv("MODEL_TEMPERATURE", "0.0"))
+).agent
