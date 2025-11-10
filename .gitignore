@@ -240,4 +240,6 @@ fabric.properties
 *.yaml
 *.pdf
 
+LLM_INSTRUCTIONS.md
+
 
