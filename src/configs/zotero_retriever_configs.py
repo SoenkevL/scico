@@ -1,10 +1,9 @@
 import os
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from dotenv import load_dotenv
-
-from src.VectorStorage import ChromaStorage
+from openai import BaseModel
 
 load_dotenv()
 
@@ -18,21 +17,28 @@ class VectorStorageConfig:
 
 
 # ===== Runtime Context Schema =====
-@dataclass
-class RetrieverContext:
-    """
-    Runtime context for retrieval operations.
-
-    This context is injected into tools at runtime and provides
-    user-specific configuration and preferences.
-    """
-    user_id: str
-    vector_storage: ChromaStorage
-    # Number of documents to retrieve per query
-    k_documents: int = 10
-    # Minimum relevance threshold (distance metric)
-    relevance_threshold: float = 1
+class RetrieverContext(BaseModel):
+    """Runtime context for the retriever agent."""
+    user_id: str = "default_user"
+    vector_storage: Optional[Any] = None  # Will be set at module level
+    k_documents: int = 4
+    relevance_threshold: float = 1.5
     preferred_format: str = "markdown"
+
+    # Accept additional config parameters that LangGraph may pass
+    thread_id: Optional[str] = None
+
+    class Config:
+        arbitrary_types_allowed = True
+        # Allow extra fields that LangGraph might inject
+        extra = "allow"
+
+    def model_post_init(self, __context):
+        """Post-initialization to set vector_storage from module if not provided."""
+        if self.vector_storage is None:
+            # Import here to avoid circular imports
+            from src.zotero_retriever_agent import _vector_storage
+            self.vector_storage = _vector_storage
 
 
 # ===== Structured Response Format =====
