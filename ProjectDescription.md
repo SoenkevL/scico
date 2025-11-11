@@ -156,13 +156,6 @@ This requires us to implement the tools in the same manner as if we would build 
 In later versions, we will make use of langchain and langgraph to implement the whole end to end implementation in code.
 
 ## EndNote
-This is a steadily developing document. It serves as the starting point now to really get the project into its first usable state. Some code has allready been written, a lot is still to be done.
 
-
-
-
-
-
-
-
-
+This is a steadily developing document. It serves as the starting point now to really get the project into its first
+usable state. Some code has allready been written, a lot is still to be done.````
