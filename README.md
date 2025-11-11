@@ -514,8 +514,9 @@ This project is in **alpha stage**. Here's what works and what doesn't:
 1. **Performance**: PDF conversion is slow for large documents (5-10 min per 50-page paper)
 2. **Memory**: Processing many PDFs simultaneously may consume significant RAM
 3. **Ollama Dependency**: Requires Ollama to be running when using local models; will fail if unavailable
-4. **Zotero Paths**: Some path formats may not be recognized (especially on Windows)
-5. **Error Handling**: Limited graceful degradation in batch operations
+4. **Ollama for marker-pdf is not working**: a problem with the marker-pdf library
+5. **Zotero Paths**: Some path formats may not be recognized (especially on Windows)
+6. **Error Handling**: Limited graceful degradation in batch operations
 
 ---
 
