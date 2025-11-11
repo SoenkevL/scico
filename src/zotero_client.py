@@ -43,6 +43,7 @@ class ZoteroClient:
         self.library_id = library_id or os.getenv("ZOTERO_ID")
         self.api_key = api_key or os.getenv("ZOTERO_API_KEY")
         self.local_storage_path = Path(local_storage_path or os.getenv("LOCAL_ZOTERO_PATH", ""))
+        self.local_storage_path = self.local_storage_path
 
         if not self.library_id or not self.api_key:
             raise ValueError("ZOTERO_ID and ZOTERO_API_KEY must be provided or set in environment")

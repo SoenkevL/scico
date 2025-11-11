@@ -183,7 +183,9 @@ class PdfIndexer:
         Returns:
             IndexingResult with statistics about the operation
         """
+        force = force or self.config.force_reindex
         logger.info(f"Updating index for {query_type.value}")
+
 
         # Get items based on query type
         if query_type == QueryType.ITEM_NAME:
@@ -218,10 +220,7 @@ class PdfIndexer:
 
         # Index
         logger.info(f"Indexing {len(items)} items")
-        original_force = self.config.force_reindex
-        self.config.force_reindex = force
         result = self._index_items(items)
-        self.config.force_reindex = original_force
 
         return result
 
@@ -335,7 +334,7 @@ class PdfIndexer:
 
         logger.info(f"Converting PDF to Markdown: {pdf_path} -> {markdown_path}")
         # Skip if already exists and not forcing reindex
-        if markdown_path.exists() and self.config.skip_existing_markdown and not self.config.force_reindex:
+        if markdown_path.exists() and self.config.skip_existing_markdown:
             logger.info(f"Markdown already exists, skipping: {markdown_path}")
             return markdown_path
 

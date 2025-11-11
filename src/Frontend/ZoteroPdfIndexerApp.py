@@ -7,13 +7,13 @@ This interface provides an easy-to-use GUI for:
 - Indexing selected PDFs into vector storage
 """
 
-import streamlit as st
 import logging
-from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
 import os
 import sys
+from pathlib import Path
+from typing import List, Dict, Any, Optional, Tuple
 
+import streamlit as st
 from langchain_core.documents import Document
 
 # Add project root to path to allow imports
@@ -410,7 +410,8 @@ def main() -> None:
                 logger.info(f"Indexing {len(st.session_state.selected_items)} items...")
                 result: IndexingResult = (st.session_state.indexer.update_index(
                     query_type=QueryType.ITEM_LIST,
-                    query_value=st.session_state.selected_items
+                    query_value=st.session_state.selected_items,
+                    force=force_reindex
                 ))
 
                 progress_bar.progress(100)
