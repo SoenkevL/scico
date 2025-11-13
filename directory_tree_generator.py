@@ -108,12 +108,12 @@ def generate_src_tree_markdown(
         'Main_MCP.py': 'Central orchestration & MCP server',
         'zotero_client.py': 'Zotero API functions',
         'PdfToMarkdown.py': 'PDF to Markdown converter',
-        'TextSplitter.py': 'Document chunking & splitting',
+        'Chunker.py': 'Document chunking & splitting',
         'VectorStorage_MCP.py': 'Vector database & RAG',
         'Notion_MCP.py': 'Notion integration (MCP)',
         'GitHub_MCP.py': 'GitHub integration (MCP)',
         'utils': 'Utility functions & configs',
-        '__init__.py': 'Package initialization'
+        '__init__.py.py': 'Package initialization'
     }
     
     tree = generate_tree_structure(

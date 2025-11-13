@@ -11,7 +11,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import streamlit as st
 from langchain_core.documents import Document
@@ -21,19 +21,20 @@ project_root: Path = Path(__file__).resolve().parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.ZoteroPdfIndexer import PdfIndexer, IndexingConfig, IndexingResult, QueryType
-from src.zotero_client import ZoteroClient
+import src.zotero.zotero_client as zot
+from src.zotero.ZoteroPdfIndexer import (
+    IndexingConfig,
+    IndexingResult,
+    PdfIndexer,
+    QueryType,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger: logging.Logger = logging.getLogger(__name__)
 
 # Page configuration
-st.set_page_config(
-    page_title="Zotero PDF Indexer",
-    page_icon="📚",
-    layout="wide"
-)
+st.set_page_config(page_title="Zotero PDF Indexer", page_icon="📚", layout="wide")
 
 
 def initialize_session_state():
@@ -60,17 +61,17 @@ def initialize_clients() -> bool:
     """Initialize Zotero client and PdfIndexer."""
     try:
         if st.session_state.zotero_client is None:
-            st.session_state.zotero_client = ZoteroClient()
+            st.session_state.zotero_client = zot
 
         if st.session_state.indexer is None:
-            markdown_path: str = os.getenv('MARKDOWN_FOLDER_PATH', './markdown_output')
+            markdown_path: str = os.getenv("MARKDOWN_FOLDER_PATH", "./markdown_output")
             config: IndexingConfig = IndexingConfig(
                 markdown_base_path=Path(markdown_path),
                 force_reindex=False,
                 skip_existing_markdown=True,
                 chunk_size=1000,
                 chunk_overlap=200,
-                chunking_strategy='markdown+recursive',
+                chunking_strategy="markdown+recursive",
             )
             st.session_state.indexer = PdfIndexer(config=config)
 
@@ -83,13 +84,15 @@ def initialize_clients() -> bool:
 
 def load_collections() -> Dict[str, str]:
     """Load all Zotero collections.
-    
+
     Returns:
         Dictionary mapping collection names to collection IDs
     """
     try:
         # Returns Dict[str, str] - collection_name: collection_id
-        collections: Dict[str, str] = st.session_state.zotero_client.list_all_collections()
+        collections: Dict[str, str] = (
+            st.session_state.zotero_client.list_all_collections()
+        )
         st.session_state.collections = collections
         return collections
     except Exception as e:
@@ -100,10 +103,10 @@ def load_collections() -> Dict[str, str]:
 
 def load_collection_items(collection_id: str) -> List[Tuple[Path, Dict[str, Any]]]:
     """Load items from a selected collection.
-    
+
     Args:
         collection_id: Zotero collection ID to load items from
-        
+
     Returns:
         List of tuples containing (pdf_path, metadata)
     """
@@ -121,10 +124,10 @@ def load_collection_items(collection_id: str) -> List[Tuple[Path, Dict[str, Any]
 
 def format_item_display(item_data: Tuple[Path, Dict[str, Any]]) -> str:
     """Format item for display in multiselect.
-    
+
     Args:
         item_data: Tuple of (pdf_path, metadata)
-        
+
     Returns:
         Formatted string for display
     """
@@ -132,13 +135,13 @@ def format_item_display(item_data: Tuple[Path, Dict[str, Any]]) -> str:
     metadata: Dict[str, Any]
     pdf_path, metadata = item_data
 
-    title: str = metadata.get('title', 'Untitled')
-    author_str: str = metadata.get('authors', '')
+    title: str = metadata.get("title", "Untitled")
+    author_str: str = metadata.get("authors", "")
 
     # Get first author if multiple
-    authors: List[str] = author_str.split('; ')
+    authors: List[str] = author_str.split("; ")
     if len(authors) > 1:
-        author_str = authors[0] + ' et al.'
+        author_str = authors[0] + " et al."
 
     display: str = f"{title}"
     if author_str:
@@ -168,21 +171,21 @@ def main() -> None:
 
         # Configuration options
         force_reindex: bool = st.checkbox(
-            "Force reindex",
-            value=False,
-            help="Reindex even if files already exist"
+            "Force reindex", value=False, help="Reindex even if files already exist"
         )
 
         skip_existing_markdown: bool = st.checkbox(
             "Skip existing Markdown",
             value=True,
-            help="Skip PDF-to-Markdown conversion if MD file exists"
+            help="Skip PDF-to-Markdown conversion if MD file exists",
         )
 
         # Update config
         if st.session_state.indexer:
             st.session_state.indexer.config.force_reindex = force_reindex
-            st.session_state.indexer.config.skip_existing_markdown = skip_existing_markdown
+            st.session_state.indexer.config.skip_existing_markdown = (
+                skip_existing_markdown
+            )
 
         st.divider()
 
@@ -204,15 +207,12 @@ def main() -> None:
         search_query = st.text_input(
             "Search Query",
             placeholder="Enter semantic search query (optional)",
-            help="Leave empty to search by metadata only"
+            help="Leave empty to search by metadata only",
         )
 
     with search_col2:
         num_results = st.number_input(
-            "Number of Results",
-            min_value=1,
-            max_value=50,
-            value=5
+            "Number of Results", min_value=1, max_value=50, value=5
         )
 
     # Metadata filter inputs
@@ -220,30 +220,27 @@ def main() -> None:
 
     with metadata_col1:
         filter_item_id = st.text_input(
-            "Item ID Filter",
-            placeholder="Filter by item_id (optional)"
+            "Item ID Filter", placeholder="Filter by item_id (optional)"
         )
 
     with metadata_col2:
         filter_title = st.text_input(
-            "Title Filter",
-            placeholder="Filter by title (optional)"
+            "Title Filter", placeholder="Filter by title (optional)"
         )
 
     with metadata_col3:
         filter_author = st.text_input(
-            "Author Filter",
-            placeholder="Filter by author (optional)"
+            "Author Filter", placeholder="Filter by author (optional)"
         )
 
     # Build metadata filter
     metadata_filter = {}
     if filter_item_id:
-        metadata_filter['item_id'] = filter_item_id
+        metadata_filter["item_id"] = filter_item_id
     if filter_title:
-        metadata_filter['title'] = filter_title
+        metadata_filter["title"] = filter_title
     if filter_author:
-        metadata_filter['authors'] = filter_author
+        metadata_filter["authors"] = filter_author
 
     # Search button
     if st.button("🔎 Search", type="primary", use_container_width=True):
@@ -255,7 +252,7 @@ def main() -> None:
                     results: List[Document] = st.session_state.indexer.search(
                         query=search_query,
                         metadata_filter=metadata_filter if metadata_filter else None,
-                        n_results=num_results
+                        n_results=num_results,
                     )
 
                 if results:
@@ -263,16 +260,20 @@ def main() -> None:
 
                     # Display results
                     for idx, doc in enumerate(results, 1):
-                        with st.expander(f"Result {idx}: {doc.metadata.get('title', 'Untitled')}"):
+                        with st.expander(
+                                f"Result {idx}: {doc.metadata.get('title', 'Untitled')}"
+                        ):
                             # Metadata
                             st.markdown("**Metadata:**")
                             metadata_display = {
-                                "Title": doc.metadata.get('title', 'N/A'),
-                                "Authors": doc.metadata.get('authors', 'N/A'),
-                                "Item ID": doc.metadata.get('item_id', 'N/A'),
+                                "Title": doc.metadata.get("title", "N/A"),
+                                "Authors": doc.metadata.get("authors", "N/A"),
+                                "Item ID": doc.metadata.get("item_id", "N/A"),
                             }
-                            if 'distance' in doc.metadata:
-                                metadata_display["Distance"] = f"{doc.metadata['distance']:.4f}"
+                            if "distance" in doc.metadata:
+                                metadata_display["Distance"] = (
+                                    f"{doc.metadata['distance']:.4f}"
+                                )
 
                             for key, value in metadata_display.items():
                                 st.text(f"{key}: {value}")
@@ -310,12 +311,14 @@ def main() -> None:
             selected_collection_name: str = st.selectbox(
                 "Choose a collection",
                 options=[""] + collection_names,
-                key="collection_selector"
+                key="collection_selector",
             )
 
             if selected_collection_name:
                 # Get collection ID from the dictionary
-                collection_id: str = st.session_state.collections[selected_collection_name]
+                collection_id: str = st.session_state.collections[
+                    selected_collection_name
+                ]
 
                 # Only load items if collection has changed
                 if st.session_state.last_loaded_collection != collection_id:
@@ -326,11 +329,15 @@ def main() -> None:
                     with st.spinner("Loading collection items..."):
                         load_collection_items(collection_id)
 
-                    st.success(f"✓ Loaded {len(st.session_state.collection_items)} items")
+                    st.success(
+                        f"✓ Loaded {len(st.session_state.collection_items)} items"
+                    )
                 else:
                     # Collection hasn't changed, just show the count
                     if st.session_state.collection_items:
-                        st.info(f"📄 {len(st.session_state.collection_items)} items in collection")
+                        st.info(
+                            f"📄 {len(st.session_state.collection_items)} items in collection"
+                        )
         else:
             st.info("Click 'Load Collections' to get started")
 
@@ -356,13 +363,11 @@ def main() -> None:
                     "Select items to index",
                     options=item_names,
                     default=item_names,
-                    key="item_selector"
+                    key="item_selector",
                 )
             else:
                 selected_display_names = st.multiselect(
-                    "Select items to index",
-                    options=item_names,
-                    key="item_selector"
+                    "Select items to index", options=item_names, key="item_selector"
                 )
 
             # Store selected items in session state
@@ -370,7 +375,9 @@ def main() -> None:
                 item_display_map[name] for name in selected_display_names
             ]
 
-            st.info(f"Selected {len(st.session_state.selected_items)} items for indexing")
+            st.info(
+                f"Selected {len(st.session_state.selected_items)} items for indexing"
+            )
         else:
             st.info("Select a collection to view its items")
 
@@ -385,14 +392,11 @@ def main() -> None:
             "🚀 Start Indexing",
             type="primary",
             use_container_width=True,
-            disabled=len(st.session_state.selected_items) == 0
+            disabled=len(st.session_state.selected_items) == 0,
         )
 
     with col_btn2:
-        clear_selection: bool = st.button(
-            "🗑️ Clear Selection",
-            use_container_width=True
-        )
+        clear_selection: bool = st.button("🗑️ Clear Selection", use_container_width=True)
         if clear_selection:
             st.session_state.selected_items = []
             st.rerun()
@@ -408,11 +412,11 @@ def main() -> None:
 
                 # Index the selected items
                 logger.info(f"Indexing {len(st.session_state.selected_items)} items...")
-                result: IndexingResult = (st.session_state.indexer.update_index(
+                result: IndexingResult = st.session_state.indexer.update_index(
                     query_type=QueryType.ITEM_LIST,
                     query_value=st.session_state.selected_items,
-                    force=force_reindex
-                ))
+                    force=force_reindex,
+                )
 
                 progress_bar.progress(100)
                 st.session_state.indexing_results = result

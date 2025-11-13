@@ -327,7 +327,7 @@ Splits markdown into semantic chunks using:
 - Configurable chunk size and overlap
 
 ```python
-from src.document_processing.TextSplitter import MarkdownChunker
+from src.document_processing.Chunker import MarkdownChunker
 
 chunker = MarkdownChunker(
     chunk_size=1000,
@@ -397,7 +397,7 @@ docs = indexer.search("your question", n_results=5)
 ```python
 from pathlib import Path
 from src.document_processing.PdfToMarkdown import PdfToMarkdownConverter
-from src.document_processing.TextSplitter import MarkdownChunker
+from src.document_processing.Chunker import MarkdownChunker
 from src.VectorStorage import ChromaStorage
 
 # 1. Convert PDF to markdown

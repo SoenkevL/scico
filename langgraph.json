@@ -3,7 +3,7 @@
     "."
   ],
   "graphs": {
-    "agent": "./src/zotero_retriever_agent.py:agent"
+    "retriever_agent": "./src/agents/zotero_retriever_agent.py:agent"
   },
   "env": ".env"
 }
