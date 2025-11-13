@@ -162,82 +162,35 @@ MODEL_TEMPERATURE=0.0
 Inside this folder, you should see `zotero.sqlite`.
 
 ---
-
 ## 🚀 Quick Start
 
-### **Option 1: Streamlit Web Interface (Recommended)**
+### **Main Interaction Points**
 
-The easiest way to get started - a GUI to browse collections and index PDFs:
+SciCO provides two primary ways to interact with the system:
 
-```shell script
-streamlit run src/Frontend/ZoteroPdfIndexerApp.py
-```
+#### **1.Web Interface**
 
-This interface lets you:
-
+The easiest way to get started - a GUI to browse collections, index PDFs, and search your library:
 1. Browse your Zotero collections
 2. Select items to index
 3. Monitor processing progress
 4. Search your indexed documents
 
-### **Option 2: Programmatic Usage**
-
-Minimal example for indexing and searching:
-
-```python
-from pathlib import Path
-from src.ZoteroPdfIndexer import IndexingConfig, PdfIndexer
-
-# Configure indexer
-config = IndexingConfig(
-    markdown_base_path=Path("example/markdown-library"),
-    force_reindex=False,
-    skip_existing_markdown=True,
-    chunk_size=1000,
-    chunk_overlap=200,
-    chunking_strategy="markdown+recursive",
-)
-indexer = PdfIndexer(config)
-
-# Index a collection
-result = indexer.index_by_collection_name("Your Collection Name")
-print(result)
-
-# Search
-docs = indexer.search("What is integrated information theory?", n_results=5)
-for d in docs:
-    print(f"Title: {d.metadata.get('title')}")
-    print(f"Excerpt: {d.page_content[:200]}...\n")
+```bash
+uv run streamlit run src/Frontend/ZoteroPdfIndexerApp.py``` 
 ```
 
-### **Option 3: AI Agent with Citations**
+and a the langgraph cli to interact with the agent:
 
-Use the LangChain-based retriever agent for answers with source attribution:
-
-```python
-from src.zotero_retriever_agent import ZoteroRetriever
-from src.configs.zotero_retriever_configs import VectorStorageConfig
-
-retriever = ZoteroRetriever(
-    vector_storage_config=VectorStorageConfig(),
-    model_name="gpt-oss:latest",  # Or OpenAI model
-    provider="ollama",  # or "openai"
-    temperature=0.0,
-)
-
-result = retriever.invoke(
-    "Summarize the core idea behind IIT with citations.",
-    thread_id="session-1",
-    user_id="alice",
-    k_documents=8,
-    relevance_threshold=1.0,
-)
-
-print(retriever.get_response(result))
+```bash
+uv run langgraph dev 
 ```
 
+This opens:
 
----
+- Interactive testing directly in **LangSmith**
+- Access via **LangChain UI** for local graph interactions
+- Real-time agent debugging and monitoring
 
 ## 📚 Project Structure
 
@@ -490,16 +443,19 @@ This project is in **alpha stage**. Here's what works and what doesn't:
 - PDF to markdown conversion (via marker-pdf)
 - Semantic chunking with metadata preservation
 - Vector storage and retrieval with ChromaDB
+- **Indexing and retrieval systems are fully functional**
 - Streamlit web interface for indexing
 - LangChain agent for retrieval with citations
 - Support for both Ollama and OpenAI backends
+- LangGraph dev server integration
 
-### **⚙️ Experimental**
+### **⚙️ Experimental / Work in Progress**
+
+- **Zotero Librarian agent** - Under active development
 - Batch processing of multiple PDFs
 - Large collection handling (may be slow)
 - Complex query optimization
-- LangGraph deployment configuration
-- Incremental updates (markdowns are safed and are not re-converted)
+- Incremental updates (markdowns are saved and are not re-converted)
 - Search UI in Streamlit based on metadata
 
 ### **🚧 Not Yet Implemented**
@@ -521,6 +477,12 @@ This project is in **alpha stage**. Here's what works and what doesn't:
 ---
 
 ## 🛣️ Roadmap
+
+### **Near-Term Priorities**
+
+- [ ] **Better stats about indexed sources** - Enhanced metrics and analytics for the agent
+- [ ] **Retrieval optimization** - Improved semantic search and ranking algorithms
+- [ ] **Multi-agent designs** - Collaborative agent architectures for complex research workflows
 
 ### **v0.2 - Core Improvements**
 - [ ] Better error handling and logging
