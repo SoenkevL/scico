@@ -9,26 +9,12 @@ from langgraph.types import Command, interrupt
 
 load_dotenv()
 
+from src.Tools.zotero_retriever_tools import multi_query_search
 from src.storages.ChromaStorage import ChromaStorage
 from src.configs.Chroma_storage_config import VectorStorageConfig
 
 VECTOR_STORAGE_CONFIG = VectorStorageConfig()
-VECTOR_STORAGE = ChromaStorage(
-    VECTOR_STORAGE_CONFIG
-)
-
-
-# --- Mocks & Placeholders ---
-# In a real scenario, you would import this from your existing module
-# from my_project.search import vector_search
-
-def vector_search(queries: List[str]) -> List[Document]:
-    """
-    Existing function placeholder. 
-    Takes a list of queries and returns a list of LangChain Documents.
-    """
-    # Mock return for demonstration
-    return VECTOR_STORAGE.search(queries)
+VECTOR_STORAGE = ChromaStorage(VECTOR_STORAGE_CONFIG)
 
 
 # --- State Definition ---
@@ -43,13 +29,11 @@ class ZoteroState(TypedDict):
     information_string: str
     final_response: str
 
-
 # Initialize LLM
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
 
 # --- Nodes ---
-
 def check_for_user_query(state: ZoteroState) -> Command[Literal["generate_search_queries"]]:
     """
     Has the user provided a query? if not get one from him 
@@ -102,7 +86,7 @@ def retrieve_zotero_docs(state: ZoteroState) -> Command[Literal["check_results"]
     queries = state.get("search_queries")
 
     # Call the existing function
-    docs = vector_search(queries)
+    docs = multi_query_search(queries, VECTOR_STORAGE, k=5)
 
     print(f"Retrieved {len(docs)} documents.")
 
@@ -174,7 +158,7 @@ workflow.add_node("no_results", no_results)
 # Define edges
 # Note: Conditional logic is handled inside the nodes via Command, 
 # so we only need to define the entry point.
-workflow.add_edge(START, "check_for_user_query")
+workflow.add_edge(START, 'check_for_user_query')
 
 # Compile graph
 app = workflow.compile()

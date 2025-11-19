@@ -6,7 +6,7 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.documents import Document
 
 import src.configs.zotero_retriever_configs as config
-from storages.ChromaStorage import ChromaStorage
+from src.storages.ChromaStorage import ChromaStorage
 
 logger = logging.getLogger(__name__)
 

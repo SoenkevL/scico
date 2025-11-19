@@ -3,7 +3,7 @@
     "."
   ],
   "graphs": {
-    "retrieval_graph": "./src/zotero_question_graph.py:app",
+    "retrieval_graph": "./src/workflows/zotero_question_graph.py:app",
     "retriever_agent": "./src/agents/zotero_retriever_agent.py:agent"
   },
   "env": ".env"
