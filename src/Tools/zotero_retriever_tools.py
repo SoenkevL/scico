@@ -6,13 +6,11 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.documents import Document
 
 import src.configs.zotero_retriever_configs as config
+from storages.ChromaStorage import ChromaStorage
 
 logger = logging.getLogger(__name__)
 
-
 # ===== Helper Functions =====
-
-
 def _document_to_dict(doc: Document) -> dict:
     """Format a Document into a source dictionary for the response."""
     metadata = doc.metadata
@@ -55,7 +53,8 @@ def _content_string_from_df(df: pd.DataFrame) -> str:
     return content_string
 
 
-def _list_of_documents_to_string(documents: list[Document]) -> str:
+# === public functions ===
+def list_of_documents_to_string(documents: list[Document]) -> str:
     """Convert a list of Document objects to a string for display."""
     display_string = "<context from scientific literature>\n"
     df = _list_of_documents_to_dataframe(documents)
@@ -69,77 +68,34 @@ def _list_of_documents_to_string(documents: list[Document]) -> str:
     display_string += "</context from scientific literature>"
     return display_string
 
-
-def _assess_relevance(documents: List[Document], threshold: float) -> str:
-    """Assess the overall relevance quality of retrieved documents."""
-    if not documents:
-        return "low"
-
-    avg_distance = sum(doc.metadata.get("distance", 1.0) for doc in documents) / len(
-        documents
-    )
-
-    if avg_distance < threshold * 0.5:
-        return "high"
-    elif avg_distance < threshold:
-        return "medium"
-    else:
-        return "low"
-
-
-# ===== Tool Definitions =====
-
-
-@tool(response_format="content_and_artifact")
 def semantic_search(
-        query: str, runtime: ToolRuntime[config.RetrieverContext]
-) -> tuple[str, Any]:
+        query: str, storage: ChromaStorage, k: int
+) -> list[Document]:
     """
     Perform semantic search on the Zotero vector storage to find relevant document passages.
-
-    Args:
-        query: The search query or question to find relevant content for.
-        runtime: Injected runtime context with vector storage and preferences.
-
-    Returns:
-        A structured string of relevant information using the following format:
-        <title>\n<content>\n<metadata>\n\n...
-
-    Use this as the PRIMARY tool for answering single and simple questions.
     """
-    storage = runtime.context.vector_storage
-    k = runtime.context.k_documents
-
     logger.debug(f"Performing semantic search for query: {query}")
     results = storage.search(query=query, n_results=k)
     logger.info(f"Found {len(results)}/{k} results for query: {query}")
 
-    result_string = _list_of_documents_to_string(results)
-
-    return result_string, results
+    return results
 
 
-@tool(response_format="content_and_artifact")
 def multi_query_search(
-        queries: List[str], runtime: ToolRuntime[config.RetrieverContext]
-):
+        queries: List[str], storage: ChromaStorage, k: int
+) -> list[Document]:
     """
     Perform multiple semantic searches and combine results.
 
     Args:
         queries: List of related search queries to execute.
-        runtime: Injected runtime context with vector storage and preferences.
+        storage: vector storage to call search function on
+        k: number of results to return
 
      Returns:
         A structured string of relevant information using the following format:
         <title>\n<content>\n<metadata>\n\n...
-
-    Use this as the PRIMARY tool for complex questions that might need multiple perspectives and with optimized semantic searches,
-    or to ensure comprehensive coverage of a topic.
     """
-    storage = runtime.context.vector_storage
-    k = runtime.context.k_documents
-
     all_results = []
     seen_ids = set()
 
@@ -158,13 +114,90 @@ def multi_query_search(
     results = all_results[
         : k * 2
     ]  # Return up to 2x k_documents for comprehensive coverage
-    result_string = _list_of_documents_to_string(results)
 
-    return result_string, results
+    return results
+
+
+def search_by_item(
+        item_id: str, query: str, storage: ChromaStorage, k: int
+) -> list[Document]:
+    """
+    Search for relevant content within a specific Zotero item.
+
+    Args:
+        item_id: The Zotero item ID to search within.
+        query: The search query to find relevant passages in this item.
+        storage: vector storage to call search function on
+        k: number of results to return
+
+    Returns:
+        A structured string of relevant information using the following format:
+        <title>\n<content>\n<metadata>\n\n...
+    """
+    results = storage.search(query=query, metadata={"item_id": item_id}, n_results=k)
+
+    return results
+
+
+def list_indexed_items(storage: ChromaStorage) -> dict[str, Any]:
+    """
+    Get statistics about what items are indexed in the vector storage.
+
+    Args:
+        storage: vector storage to call get_collection_stats function on
+
+    Returns:
+        Dictionary with 'total_elements' and 'items' (mapping item_id to title and count).
+    """
+    return storage.get_collection_stats()
+
+
+# ===== Tool Definitions =====
+@tool(response_format="content_and_artifact")
+def semantic_search_tool(
+        query: str, runtime: ToolRuntime[config.RetrieverContext]
+) -> tuple[str, Any]:
+    """
+    Perform semantic search on the Zotero vector storage to find relevant document passages.
+
+    Args:
+        query: The search query or question to find relevant content for.
+        runtime: Injected runtime context with vector storage and preferences.
+
+    Returns:
+        A structured string of relevant information using the following format:
+        <title>\n<content>\n<metadata>\n\n...
+
+    Use this as the PRIMARY tool for answering single and simple questions.
+    """
+    results = semantic_search(query, runtime.context.vector_storage, runtime.context.k_documents)
+    return list_of_documents_to_string(results), results
 
 
 @tool(response_format="content_and_artifact")
-def search_by_item(
+def multi_query_search_tool(
+        queries: List[str], runtime: ToolRuntime[config.RetrieverContext]
+):
+    """
+    Perform multiple semantic searches and combine results.
+
+    Args:
+        queries: List of related search queries to execute.
+        runtime: Injected runtime context with vector storage and preferences.
+
+     Returns:
+        A structured string of relevant information using the following format:
+        <title>\n<content>\n<metadata>\n\n...
+
+    Use this as the PRIMARY tool for complex questions that might need multiple perspectives and with optimized semantic searches,
+    or to ensure comprehensive coverage of a topic.
+    """
+    results = multi_query_search(queries, runtime.context.vector_storage, runtime.context.k_documents)
+    return list_of_documents_to_string(results), results
+
+
+@tool(response_format="content_and_artifact")
+def search_by_item_tool(
         item_id: str, query: str, runtime: ToolRuntime[config.RetrieverContext]
 ):
     """
@@ -181,18 +214,12 @@ def search_by_item(
 
     Use this when the user asks about a specific paper or item by name or ID.
     """
-    storage = runtime.context.vector_storage
-    k = runtime.context.k_documents
-
-    results = storage.search(query=query, metadata={"item_id": item_id}, n_results=k)
-
-    result_string = _list_of_documents_to_string(results)
-
-    return result_string, results
+    results = search_by_item(item_id, query, runtime.context.vector_storage, runtime.context.k_documents)
+    return list_of_documents_to_string(results), results
 
 
 @tool
-def list_indexed_items(runtime: ToolRuntime[config.RetrieverContext]) -> dict:
+def list_indexed_items_tool(runtime: ToolRuntime[config.RetrieverContext]) -> dict[str, Any]:
     """
     Get statistics about what items are indexed in the vector storage.
 
@@ -205,5 +232,4 @@ def list_indexed_items(runtime: ToolRuntime[config.RetrieverContext]) -> dict:
     Use this to understand what documents are available for search,
     or when the user asks "what can I search" or "what's indexed".
     """
-    storage = runtime.context.vector_storage
-    return storage.get_collection_stats()
+    return list_indexed_items(storage=runtime.context.vector_storage)

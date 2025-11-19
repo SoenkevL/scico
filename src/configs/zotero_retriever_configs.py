@@ -1,41 +1,27 @@
-import os
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import List, Optional
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict
 
-from src.storages.VectorStorage import ChromaStorage
+from src.configs.Chroma_storage_config import VectorStorageConfig
+from src.storages.ChromaStorage import ChromaStorage
 
 load_dotenv()
 
 
-# ===== Vector Storage Configuration =====
-@dataclass
-class VectorStorageConfig:
-    vector_storage_path: Path = Path(os.getenv("VECTOR_STORAGE_PATH", ""))
-    collection_name: str = os.getenv("COLLECTION_NAME", "Zotero")
-    embedding_model: str = os.getenv("EMBEDDING_MODEL_NAME", "")
-    api: str = os.getenv("EMBEDDING_MODEL_API", "")
+
 
 
 # ===== Runtime Context Schema =====
 # Initialize vector storage at module level for LangGraph CLI
-VECTOR_STORAGE_CONFIG = VectorStorageConfig()
-VECTOR_STORAGE = ChromaStorage(
-    index_path=str(VECTOR_STORAGE_CONFIG.vector_storage_path),
-    collection_name=VECTOR_STORAGE_CONFIG.collection_name,
-    embedding_model=VECTOR_STORAGE_CONFIG.embedding_model,
-    api=VECTOR_STORAGE_CONFIG.api,
-)
-
 class RetrieverContext(BaseModel):
     """Runtime context for the retriever agent."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    vector_storage: ChromaStorage = VECTOR_STORAGE
+    vector_storage_config: VectorStorageConfig = VectorStorageConfig()
+    vector_storage: ChromaStorage = ChromaStorage(vector_storage_config)
     thread_id: Optional[str] = None
     user_id: str = "default_user"
     k_documents: int = 4

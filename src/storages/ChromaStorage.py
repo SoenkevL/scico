@@ -8,6 +8,8 @@ from langchain_core.documents import Document
 from langchain_ollama import OllamaEmbeddings
 from langchain_openai import OpenAIEmbeddings
 
+from src.configs.Chroma_storage_config import VectorStorageConfig
+
 logger = getLogger(__name__)
 
 
@@ -38,11 +40,11 @@ def _convert_results_to_documents(results: Dict) -> List[Document]:
 class ChromaStorage:
     """LangChain-powered vector storage with Ollama embeddings."""
 
-    def __init__(self, index_path: str, collection_name: str, embedding_model: str = "nomic-embed-text", api='openai'):
-        self.index_path = index_path
-        self.embedding_model = embedding_model
-        self.api = api
-        self.collection_name = f'{collection_name}_{api}_{embedding_model}'
+    def __init__(self, config: VectorStorageConfig):
+        self.index_path = config.vector_storage_path
+        self.embedding_model = config.embedding_model
+        self.api = config.api
+        self.collection_name = f'{config.collection_name}_{self.api}_{self.embedding_model}'
 
         # Initialize LangChain Ollama embeddings
         self.embeddings = self._init_embedding()
@@ -52,7 +54,7 @@ class ChromaStorage:
         self.vectorstore = Chroma(
             collection_name=self.collection_name,
             embedding_function=self.embeddings,
-            persist_directory=index_path
+            persist_directory=str(config.vector_storage_path)
         )
 
     def _init_embedding(self):

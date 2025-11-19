@@ -28,10 +28,10 @@ from src.configs.zotero_retriever_configs import RetrieverContext
 from src.Prompts.zotero_retriever_prompts import SYSTEM_PROMPT
 from src.Tools.general_tools import final_answer, think
 from src.Tools.zotero_retriever_tools import (
-    list_indexed_items,
-    multi_query_search,
-    search_by_item,
-    semantic_search,
+    list_indexed_items_tool,
+    multi_query_search_tool,
+    search_by_item_tool,
+    semantic_search_tool,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,10 +63,10 @@ MODEL = _choose_agent_model()
 
 # Define retrieval tools
 TOOLS = [
-    semantic_search,
-    search_by_item,
-    list_indexed_items,
-    multi_query_search,
+    semantic_search_tool,
+    search_by_item_tool,
+    list_indexed_items_tool,
+    multi_query_search_tool,
     final_answer,
     think,
 ]

@@ -18,7 +18,7 @@ import src.zotero.zotero_client as zot
 from src.configs.pdf_indexer_config import IndexingConfig, IndexingResult, QueryType
 from src.document_processing.Chunker import chunk
 from src.document_processing.PdfToMarkdown import convert_pdf_to_markdown
-from src.storages.VectorStorage import ChromaStorage
+from src.storages.ChromaStorage import ChromaStorage
 
 logger = logging.getLogger(__name__)
 
