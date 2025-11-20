@@ -36,10 +36,8 @@ class Queries(BaseModel):
 
 class ResearchResponse(BaseModel):
     """Structured output for the final answer."""
-    sources: List[str] = Field(description="List of valid sources/citations used with a description of their content.")
-    summary_of_sources: str = Field(
-        description="A summary of the sources used to answer the question containing in line citations.")
     answer: str = Field(description="The direct answer to the user's question.")
+    limitations: str = Field(description="Any limitations or caveats about the answer.")
 
 
 class SourceRelevance(BaseModel):
@@ -51,7 +49,8 @@ class SourceRelevance(BaseModel):
 
 class KnowledgeSynthesis(BaseModel):
     """Synthesis of knowledge across multiple sources."""
-    relevant_sources: List[SourceRelevance] = Field(description="List of relevant information per source.")
+    relevant_sources: List[SourceRelevance] = Field(
+        description="List of relevant information per source. Always reference by citation key or, only if not present, title.")
     synthesis_text: str = Field(
         description="A synthesis of knowledge across the references with citations using the citation key.")
 
@@ -77,7 +76,7 @@ class ZoteroState(TypedDict):
     known_document_ids: List[str]
     synthesized_string: str
     loop_count: int
-    final_response: dict  # Stores the dict representation of ResearchResponse
+    final_response: str
 
 
 # === Nodes ===
@@ -111,7 +110,7 @@ def generate_initial_search_queries(state: ZoteroState) -> Command[Literal["retr
     Only runs once at the beginning.
     """
     original_query = state.get("user_query")
-
+    # TODO: upgrade the information retrieval process
     prompt = (
         f"Generate 3 specific search queries to find information in a Zotero database "
         f"that answers this question: '{original_query}'. "
@@ -186,7 +185,7 @@ def synthesize_knowledge(state: ZoteroState) -> Command[Literal["judge_informati
     prompt = (
         f"Analyze the following zotero documents for the query: '{user_query}'.\n\n"
         f"Documents:\n{docs_string}\n\n"
-        f"Provide a structured output containing:\n"
+        f"Provide a structured mardown formatted output containing:\n"
         f"1. Relevant information per source (excluding references).\n"
         f"2. A synthesis of knowledge across the references with citations using the citation key from the metadata."
     )
@@ -195,9 +194,13 @@ def synthesize_knowledge(state: ZoteroState) -> Command[Literal["judge_informati
 
     # Format the structured output back into a string for the 'information_string' state variable
     # This ensures downstream nodes (Judge, Final Answer) get the refined info.
-    formatted_output = f"## Knowledge Synthesis\n{result.synthesis_text}\n\n## Relevant Information by Source\n"
+    formatted_output = (f"# Knowledge Synthesis\n"
+                        f"## summary\n"
+                        f"{result.synthesis_text}\n\n"
+                        f"## Relevant Information by Source\n")
     for item in result.relevant_sources:
-        formatted_output += f"### Source: {item.source_citation_key}\n{item.relevant_content}\n\n"
+        formatted_output += (f"### Source: {item.source_citation_key}\n"
+                             f"{item.relevant_content}\n\n")
 
     return Command(
         update={"synthesized_string": formatted_output},
@@ -242,7 +245,6 @@ def judge_information(state: ZoteroState) -> Command[Literal["retrieve_zotero_do
     updated_reasoning = past_judgments + [decision.reasoning]
     new_queries = decision.new_search_queries
     if decision.is_sufficient:
-        print(f"Judge: Sufficient info (or exhausted options). Reason: {decision.reasoning}")
         return Command(
             update={
                 "judgments": updated_reasoning,
@@ -288,13 +290,27 @@ def final_answer_tool(state: ZoteroState) -> Command[Literal[END]]:
         f"User Query: {query}\n\n"
         f"Context:\n{info_string}\n\n"
         f"Validity of the context: {judgments}\n\n"
-        f"Important: If the context is partial or incomplete, answer based on what you have, never make information up"
+        f"Important: If the context is partial or incomplete, answer based on what you have, never make information up.\n"
+        f"Always use the provided citation_keys from the Context in your answer to clearly map it to the underlying sources"
+        f"If information is missing, explicitly state that in the limitations. Also note any limitations and relativations made in the sources."
+        f"Always use markdown formatting for readability."
     )
 
     response: ResearchResponse = structured_llm.invoke(prompt)
-    
+    final_answer = response.answer
+    limitations = response.limitations
+    final_response = (f"# Final Answer\n\n"
+                      f"## Query: \n{query}\n\n"
+                      f"## Answer: \n{final_answer}\n\n"
+                      f"## Limitations: \n{limitations}\n\n"
+                      f"--- \n\n"
+                      f"{info_string}"
+                      f"--- \n\n"
+                      f"{list_of_documents_to_string(state.get('retrieved_docs', []))}"
+                      f"--- \n\n")
+
     return Command(
-        update={"final_response": response.model_dump()},
+        update={"final_response": final_response},
         goto=END
     )
 
