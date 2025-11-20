@@ -35,37 +35,42 @@ def _list_of_documents_to_dataframe(documents: list[Document]) -> pd.DataFrame:
 def _metadata_string_from_df(df: pd.DataFrame) -> str:
     """Convert a DataFrame of metadata to a string for display."""
     return (
-        "<metadata>\n"
-        f"authors: {df['authors'].unique()[0]}\n"
-        f"citation_key: {df['citation_key'].unique()[0]}\n"
-        f"item_id: {df['item_id'].unique()[0]}\n"
-        f"date_of_publication: {df['date'].unique()[0]}\n"
-        "</metadata>"
+        "### metadata\n"
+        f"- authors: {df['authors'].unique()[0]}\n"
+        f"- citation_key: {df['citation_key'].unique()[0]}\n"
+        f"- item_id: {df['item_id'].unique()[0]}\n"
+        f"- date_of_publication: {df['date'].unique()[0]}\n"
     )
 
 
 def _content_string_from_df(df: pd.DataFrame) -> str:
     """Convert a DataFrame of content to a string for display."""
-    content_string = "<content>\n"
+    content_string = "### content\n"
     for _, row in df.iterrows():
-        content_string += f"{row['content']}\n"
-    content_string += "</content>"
+        content_string += f"- {row['content']}\n"
     return content_string
 
 
 # === public functions ===
 def list_of_documents_to_string(documents: list[Document]) -> str:
-    """Convert a list of Document objects to a string for display."""
-    display_string = "<context from scientific literature>\n"
+    """Convert a list of Document objects to a string for display.
+    # Context from scientific literature
+    ## title
+    ### metadata
+    ### content
+    """
+    display_string = "# Context from scientific literature\n\n"
     df = _list_of_documents_to_dataframe(documents)
     for title, group in df.groupby("title"):
         group = group.sort_values("split_id")
         content_string = _content_string_from_df(group)
         metadata_string = _metadata_string_from_df(group)
         display_string += (
-            f"<title>\n{title}\n</title>\n{content_string}\n{metadata_string}\n\n"
+            f"## {title}\n"
+            f"{metadata_string}\n\n"
+            f"{content_string}\n\n"
         )
-    display_string += "</context from scientific literature>"
+    display_string += "--- \n\n"
     return display_string
 
 def semantic_search(
@@ -184,8 +189,8 @@ def multi_query_search_tool(
         runtime: Injected runtime context with vector storage and preferences.
 
      Returns:
-        A structured string of relevant information using the following format:
-        <title>\n<content>\n<metadata>\n\n...
+        A structured string of relevant information in markdown format
+
 
     Use this as the PRIMARY tool for complex questions that might need multiple perspectives and with optimized semantic searches,
     or to ensure comprehensive coverage of a topic.
