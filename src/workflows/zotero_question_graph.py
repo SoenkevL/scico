@@ -1,144 +1,302 @@
-from typing import TypedDict, List, Literal
+"""
+Main graph definition for the Zotero Research Assistant.
+Handles query generation, iterative retrieval, summarization, and structured answering.
+"""
+# === import global packages ===
+from typing import TypedDict, List, Literal, Optional
 
 from dotenv import load_dotenv
 from langchain_core.documents import Document
-# Assuming we are using OpenAI, though this can be swapped
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command, interrupt
+from pydantic import BaseModel, Field
 
-load_dotenv()
-
-from src.Tools.zotero_retriever_tools import multi_query_search
-from src.storages.ChromaStorage import ChromaStorage
+# === import local file dependencies ===
+# Mocking specific local imports based on context, assuming these exist in the project structure
+# In a real run, these lines remain as they were in the user's file
+from src.Tools.zotero_retriever_tools import multi_query_search, list_of_documents_to_string
 from src.configs.Chroma_storage_config import VectorStorageConfig
+from src.storages.ChromaStorage import ChromaStorage
+
+# === initialize global objects ===
+load_dotenv()
 
 VECTOR_STORAGE_CONFIG = VectorStorageConfig()
 VECTOR_STORAGE = ChromaStorage(VECTOR_STORAGE_CONFIG)
 
+# Initialize LLM
+llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
-# --- State Definition ---
+
+# === define classes ===
+
+class Queries(BaseModel):
+    """Structured input for the research agent."""
+    queries: List[str] = Field(description="The generated research queries.")
+
+
+class ResearchResponse(BaseModel):
+    """Structured output for the final answer."""
+    sources: List[str] = Field(description="List of valid sources/citations used with a description of their content.")
+    summary_of_sources: str = Field(
+        description="A summary of the sources used to answer the question containing in line citations.")
+    answer: str = Field(description="The direct answer to the user's question.")
+
+
+class SourceRelevance(BaseModel):
+    """Relevant information extracted from a single source."""
+    source_citation_key: str = Field(description="The citation key from the source metadata.")
+    relevant_content: str = Field(
+        description="The relevant information extracted from the source, excluding references.")
+
+
+class KnowledgeSynthesis(BaseModel):
+    """Synthesis of knowledge across multiple sources."""
+    relevant_sources: List[SourceRelevance] = Field(description="List of relevant information per source.")
+    synthesis_text: str = Field(
+        description="A synthesis of knowledge across the references with citations using the citation key.")
+
+
+class JudgeDecision(BaseModel):
+    """Structured output for the judging step."""
+    is_sufficient: bool = Field(
+        description="True if the provided context is enough to answer the query or if no progress is made in answering the question")
+    new_search_queries: Optional[List[str]] = Field(
+        description="New, optimized search queries if info is insufficient.", default=None)
+    reasoning: str = Field(description="Reasoning for the decision.")
 
 class ZoteroState(TypedDict):
     """
     Represents the state of the research agent.
     """
     user_query: str
-    search_queries: List[str]
+    queries: List[str]
+    past_queries: List[str]
+    judgments: List[str]  # Added to track history
+    added_sources: int
     retrieved_docs: List[Document]
-    information_string: str
-    final_response: str
+    known_document_ids: List[str]
+    synthesized_string: str
+    loop_count: int
+    final_response: dict  # Stores the dict representation of ResearchResponse
 
-# Initialize LLM
-llm = ChatOpenAI(model="gpt-4o", temperature=0)
+
+# === Nodes ===
 
 
-# --- Nodes ---
-def check_for_user_query(state: ZoteroState) -> Command[Literal["generate_search_queries"]]:
+def check_for_user_query(state: ZoteroState) -> Command[Literal["generate_initial_search_queries"]]:
     """
-    Has the user provided a query? if not get one from him 
+    Has the user provided a query? if not get one from him.
+    Initializes loop count and past queries.
     """
+    updates = {}
+    if "loop_count" not in state:
+        updates["loop_count"] = 0
+    
     if not state.get("user_query"):
         user_input = interrupt({
             "msg": "Please provide a research query to search your Zotero library.",
         })
+        updates["user_query"] = user_input
 
-        # Update state with the provided query
-        return Command(
-            update={"user_query": user_input},
-            goto="generate_search_queries"
-        )
+    # If we have updates, apply them, otherwise just transition
+    if updates:
+        return Command(update=updates, goto="generate_initial_search_queries")
 
-    # If query exists, continue to search query generation
-    return Command(goto="generate_search_queries")
+    return Command(goto="generate_initial_search_queries")
 
 
-def generate_search_queries(state: ZoteroState) -> Command[Literal["retrieve_zotero_docs"]]:
+def generate_initial_search_queries(state: ZoteroState) -> Command[Literal["retrieve_zotero_docs"]]:
     """
     Decomposes the user query into specific search terms for the vector DB.
+    Only runs once at the beginning.
     """
     original_query = state.get("user_query")
 
-    # In a production app, use structured output (with_structured_output) for reliability
     prompt = (
         f"Generate 3 specific search queries to find information in a Zotero database "
         f"that answers this question: '{original_query}'. "
         f"Return them as a comma-separated list."
     )
 
-    response = llm.invoke(prompt).content
+    structured_llm = llm.with_structured_output(Queries)
+    queries: Queries = structured_llm.invoke(prompt)
 
-    # Simple parsing logic for the demo
-    queries = [q.strip() for q in response.split(",")]
+    print(f"Generated initial queries: {queries.queries}")
 
-    print(f"Generated queries: {queries}")
-
+    # Update both current search queries and add them to history
     return Command(
-        update={"search_queries": queries},
+        update={
+            "queries": queries.queries,
+        },
         goto="retrieve_zotero_docs"
     )
 
 
-def retrieve_zotero_docs(state: ZoteroState) -> Command[Literal["check_results"]]:
+def retrieve_zotero_docs(state: ZoteroState) -> Command[Literal["synthesize_knowledge"]]:
     """
-    Executes the vector search using the generated queries.
+    Executes the vector search using the current search queries in the state.
+    Appends new docs to existing ones to build a comprehensive context.
     """
-    queries = state.get("search_queries")
+    queries = state.get("queries", [])
+    current_docs = state.get("retrieved_docs", [])
+    current_doc_ids = state.get("known_document_ids", [])
 
-    # Call the existing function
-    docs = multi_query_search(queries, VECTOR_STORAGE, k=5)
+    # Search
+    new_docs = multi_query_search(queries, VECTOR_STORAGE, k=10)
 
-    print(f"Retrieved {len(docs)} documents.")
+    # de duplication
+    new_docs_dict = {f'{doc.metadata.get("item_id")}_{doc.metadata.get('split_id')}': doc for doc in new_docs}
+    new_doc_ids = list(new_docs_dict.keys())
+    if current_doc_ids:
+        for doc_id in current_doc_ids:
+            if doc_id in new_doc_ids:
+                new_docs_dict.pop(doc_id)
+        new_doc_ids = list(new_docs_dict.keys())
+        new_docs = list(new_docs_dict.values())
+
+    # updates
+    current_length = len(current_docs)
+    all_docs = current_docs + new_docs
+    all_doc_ids = current_doc_ids + new_doc_ids
+    added_length = len(all_docs) - current_length
+
+    print(f"Retrieved {len(new_docs)} new documents. Total: {len(all_docs)}")
 
     return Command(
-        update={"retrieved_docs": docs},
-        goto="check_results"
+        update={"retrieved_docs": all_docs,
+                "added_sources": added_length,
+                "current_doc_ids": all_doc_ids,
+                },
+        goto="synthesize_knowledge"
     )
 
 
-def check_results(state: ZoteroState) -> Command[Literal["synthesize_answer", "no_results"]]:
+def synthesize_knowledge(state: ZoteroState) -> Command[Literal["judge_information"]]:
     """
-    Routing node: Decides if we have enough info to answer.
+    Reduces the information string to a structured synthesis and per-source relevance.
     """
-    if not state.get("retrieved_docs"):
-        return Command(goto="no_results")
+    # We re-construct a context with explicit metadata to ensure the LLM can find citation keys
+    docs = state.get("retrieved_docs", [])
+    user_query = state.get("user_query")
+    docs_string = list_of_documents_to_string(docs)
+    current_synthesis = state.get("synthesized_string", "")
 
-    return Command(goto="synthesize_answer")
-
-
-def synthesize_answer(state: ZoteroState) -> Command[END]:
-    """
-    Synthesizes a final answer based on the retrieved documents.
-    """
-    docs = state.get("retrieved_docs")
-    query = state.get("user_query")
-
-    # Format context for the LLM
-    context_str = "\n\n".join \
-        ([f"Source: {d.metadata.get('source', 'Unknown')}\nContent: {d.page_content}" for d in docs])
+    structured_llm = llm.with_structured_output(KnowledgeSynthesis)
 
     prompt = (
-        f"Answer the user query based ONLY on the provided Zotero context.\n\n"
+        f"Analyze the following zotero documents for the query: '{user_query}'.\n\n"
+        f"Documents:\n{docs_string}\n\n"
+        f"Provide a structured output containing:\n"
+        f"1. Relevant information per source (excluding references).\n"
+        f"2. A synthesis of knowledge across the references with citations using the citation key from the metadata."
+    )
+
+    result: KnowledgeSynthesis = structured_llm.invoke(prompt)
+
+    # Format the structured output back into a string for the 'information_string' state variable
+    # This ensures downstream nodes (Judge, Final Answer) get the refined info.
+    formatted_output = f"## Knowledge Synthesis\n{result.synthesis_text}\n\n## Relevant Information by Source\n"
+    for item in result.relevant_sources:
+        formatted_output += f"### Source: {item.source_citation_key}\n{item.relevant_content}\n\n"
+
+    return Command(
+        update={"synthesized_string": formatted_output},
+        goto="judge_information"
+    )
+
+
+def judge_information(state: ZoteroState) -> Command[Literal["retrieve_zotero_docs", "final_answer_tool"]]:
+    """
+    Decides if we have sufficient info. 
+    If NO: Generates new queries (avoiding past ones) and loops back.
+    If YES: Goes to final answer.
+    """
+    query = state.get("user_query")
+    info_string = state.get("synthesized_string")
+    loop_count = state.get("loop_count", 0)
+    past_queries = state.get("past_queries", [])
+    past_judgments = state.get("judgments", [])
+    added_sources = state.get("added_sources", 0)
+
+    # Safety break for infinite loops
+    if added_sources < 2:
+        print("Added sources less than 2. Ending loop.")
+        return Command(goto="final_answer_tool")
+    if loop_count >= 3:
+        print("Max loops reached. Proceeding to answer with available info.")
+        return Command(goto="final_answer_tool")
+
+    structured_llm = llm.with_structured_output(JudgeDecision)
+    
+    prompt = (
         f"User Query: {query}\n\n"
-        f"Context:\n{context_str}"
+        f"Available Information Summary:\n{info_string}\n\n"
+        f"Past Search Queries (DO NOT REPEAT THESE): {past_queries}\n\n"
+        f"Reasoning for updated search queries: {past_judgments}\n\n"
+        f"Analyze if the available information is sufficient to provide a comprehensive answer. "
+        f"If not, generate at most 2-3 NEW, different search queries to find the missing pieces. "
+        f"If you cannot think of significantly different queries that might yield new info, mark as sufficient."
     )
 
-    response = llm.invoke(prompt).content
+    decision: JudgeDecision = structured_llm.invoke(prompt)
+    updated_reasoning = past_judgments + [decision.reasoning]
+    new_queries = decision.new_search_queries
+    if decision.is_sufficient:
+        print(f"Judge: Sufficient info (or exhausted options). Reason: {decision.reasoning}")
+        return Command(
+            update={
+                "judgments": updated_reasoning,
+            },
+            goto="final_answer_tool"
+        )
+    # Verify we actually got new queries
+    if not new_queries:
+        print(f"Judge: Insufficient info but no new queries provided. Ending loop.")
+        return Command(
+            update={
+                "judgments": updated_reasoning,
+            },
+            goto="final_answer_tool"
+        )
+
+    updated_history = past_queries + new_queries
 
     return Command(
-        update={"final_response": response},
-        goto=END
+        update={
+            "search_queries": new_queries,
+            "past_queries": updated_history,
+            "judgments": updated_reasoning,
+            "loop_count": loop_count + 1
+        },
+        goto="retrieve_zotero_docs"
     )
 
 
-def no_results(state: ZoteroState) -> Command[Literal[END]]:
+def final_answer_tool(state: ZoteroState) -> Command[Literal[END]]:
     """
-    Handles cases where the vector search returned nothing.
+    Constructs the final structured output using the gathered information.
+    If info is missing, it explicitly states what was found and what is missing.
     """
-    msg = "I searched your Zotero library but couldn't find any relevant documents matching your query."
+    query = state.get("user_query")
+    info_string = state.get("synthesized_string", "No information found.")
+    judgments = state.get("judgments", [])
 
+    structured_llm = llm.with_structured_output(ResearchResponse)
+
+    prompt = (
+        f"Based on the following context, answer the user's question.\n"
+        f"User Query: {query}\n\n"
+        f"Context:\n{info_string}\n\n"
+        f"Validity of the context: {judgments}\n\n"
+        f"Important: If the context is partial or incomplete, answer based on what you have, never make information up"
+    )
+
+    response: ResearchResponse = structured_llm.invoke(prompt)
+    
     return Command(
-        update={"final_response": msg},
+        update={"final_response": response.model_dump()},
         goto=END
     )
 
@@ -149,15 +307,13 @@ workflow = StateGraph(ZoteroState)
 
 # Add nodes
 workflow.add_node("check_for_user_query", check_for_user_query)
-workflow.add_node("generate_search_queries", generate_search_queries)
+workflow.add_node("generate_initial_search_queries", generate_initial_search_queries)
 workflow.add_node("retrieve_zotero_docs", retrieve_zotero_docs)
-workflow.add_node("check_results", check_results)
-workflow.add_node("synthesize_answer", synthesize_answer)
-workflow.add_node("no_results", no_results)
+workflow.add_node("synthesize_knowledge", synthesize_knowledge)
+workflow.add_node("judge_information", judge_information)
+workflow.add_node("final_answer_tool", final_answer_tool)
 
 # Define edges
-# Note: Conditional logic is handled inside the nodes via Command, 
-# so we only need to define the entry point.
 workflow.add_edge(START, 'check_for_user_query')
 
 # Compile graph
@@ -171,4 +327,8 @@ if __name__ == "__main__":
     result = app.invoke(initial_state)
 
     print("\n--- Final Result ---")
-    print(result["final_response"])
+    # Pretty print the dict response
+    final = result.get("final_response", {})
+    print(f"Answer: {final.get('answer')}")
+    print(f"Summary: {final.get('summary_of_sources')}")
+    print(f"Sources: {final.get('sources')}")
