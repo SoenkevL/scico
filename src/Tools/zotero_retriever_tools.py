@@ -111,9 +111,7 @@ def multi_query_search(
     # Sort by distance (lower is better)
     all_results.sort(key=lambda d: d.metadata.get("distance", 999.0))
 
-    results = all_results[
-        : k * 2
-    ]  # Return up to 2x k_documents for comprehensive coverage
+    results = all_results[:k]  # Return up to 2x k_documents for comprehensive coverage
 
     return results
 
