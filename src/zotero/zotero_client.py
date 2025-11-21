@@ -317,7 +317,7 @@ def get_items_by_name(item_name: str) -> List[Tuple[Path, ZoteroMetadata]]:
     return results
 
 
-def get_items_by_id(item_id: str) -> Tuple[Path, ZoteroMetadata]:
+def get_item_by_id(item_id: str) -> Tuple[Path, ZoteroMetadata]:
     """
     Get a specific item by its ID.
 
@@ -394,6 +394,35 @@ def get_items_by_collection_name(collection_name: str) -> List[Tuple[Path, Zoter
 
     return get_items_by_collection_id(collection_id)
 
+
+def get_item_id_from_storage_key(storage_key: str) -> Optional[str]:
+    """
+    Get the parent item ID for a given storage key.
+
+    Args:
+        storage_key: The key of the storage item (attachment).
+
+    Returns:
+        The item ID (key) of the parent bibliographic item, or None if not found.
+    """
+    logger.info(f"Fetching item ID for storage key: {storage_key}")
+
+    try:
+        # The storage key corresponds to the attachment item
+        attachment_item = ZOT.item(storage_key)
+
+        # The parent item key is in data.parentItem
+        parent_key = attachment_item.get('data', {}).get('parentItem')
+
+        if parent_key:
+            return parent_key
+
+        logger.warning(f"Item {storage_key} has no parent item")
+        return None
+
+    except Exception as e:
+        logger.error(f"Error fetching item for storage key {storage_key}: {e}")
+        return None
 
 # === main functionallity ===
 if __name__ == "__main__":
