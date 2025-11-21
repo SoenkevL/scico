@@ -186,11 +186,15 @@ class ChromaStorage:
                 metadata = results['metadatas'][i]
                 item_id = metadata.get('item_id', 'unknown')
                 title = metadata.get('title', 'No title')
+                storage_key = metadata.get('storage_key', 'unknown')
+                citation_key = metadata.get('citation_key', 'unknown')
 
                 if item_id not in items:
                     items[item_id] = {
                         'count': 0,
-                        'title': title
+                        'title': title,
+                        'storage_key': storage_key,
+                        'citation_key': citation_key,
                     }
 
                 items[item_id]['count'] += 1
