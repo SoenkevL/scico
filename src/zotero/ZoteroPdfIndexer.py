@@ -17,7 +17,7 @@ from langchain_core.documents import Document
 
 # === import local file dependencies ===
 import src.zotero.zotero_client as zot
-from src.configs.Chroma_storage_config import VectorStorageConfig
+from src.configs.Chroma_storage_config import ChromaStorageConfig
 from src.configs.pdf_indexer_config import IndexingConfig, IndexingResult, QueryType
 from src.document_processing.Chunker import chunk
 from src.document_processing.PdfToMarkdown import convert_pdf_to_markdown
@@ -53,7 +53,7 @@ class PdfIndexer:
     - Indexing into vector storage
     """
 
-    def __init__(self, config: IndexingConfig, storage_config: VectorStorageConfig):
+    def __init__(self, config: IndexingConfig, storage_config: ChromaStorageConfig):
         """
         Initialize the PdfIndexer with all required components.
 

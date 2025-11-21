@@ -24,7 +24,7 @@ if str(project_root) not in sys.path:
 import src.zotero.zotero_client as zot
 from src.zotero.ZoteroPdfIndexer import (
     IndexingConfig,
-    VectorStorageConfig,
+    ChromaStorageConfig,
     IndexingResult,
     PdfIndexer,
     QueryType,
@@ -74,7 +74,7 @@ def initialize_clients() -> bool:
                 chunk_overlap=200,
                 chunking_strategy="markdown+recursive",
             )
-            storage_config: VectorStorageConfig = VectorStorageConfig()
+            storage_config: ChromaStorageConfig = ChromaStorageConfig()
             st.session_state.indexer = PdfIndexer(config=config, storage_config=storage_config)
             logger.info(
                 f"Initialized PdfIndexer with config: {config} and storage config: {storage_config}"

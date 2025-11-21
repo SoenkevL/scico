@@ -14,13 +14,13 @@ from pydantic import BaseModel, Field
 
 # === import local file dependencies ===
 from src.Tools.zotero_retriever_tools import multi_query_search, list_of_documents_to_string
-from src.configs.Chroma_storage_config import VectorStorageConfig
+from src.configs.Chroma_storage_config import ChromaStorageConfig
 from src.storages.ChromaStorage import ChromaStorage
 
 # === initialize global objects ===
 load_dotenv()
 
-VECTOR_STORAGE_CONFIG = VectorStorageConfig()
+VECTOR_STORAGE_CONFIG = ChromaStorageConfig()
 VECTOR_STORAGE = ChromaStorage(VECTOR_STORAGE_CONFIG)
 
 # Initialize LLM

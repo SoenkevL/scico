@@ -4,7 +4,7 @@ from typing import List, Optional
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict
 
-from src.configs.Chroma_storage_config import VectorStorageConfig
+from src.configs.Chroma_storage_config import ChromaStorageConfig
 from src.storages.ChromaStorage import ChromaStorage
 
 load_dotenv()
@@ -20,7 +20,7 @@ class RetrieverContext(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    vector_storage_config: VectorStorageConfig = VectorStorageConfig()
+    vector_storage_config: ChromaStorageConfig = ChromaStorageConfig()
     vector_storage: ChromaStorage = ChromaStorage(vector_storage_config)
     thread_id: Optional[str] = None
     user_id: str = "default_user"
