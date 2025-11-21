@@ -1,3 +1,8 @@
+---
+apply: by model decision
+instructions: Whenever you are asked something about the project, work with project files or interact with the repository. It is the general Philosophy behind the project.
+---
+
 ## 🤝 SciCo: A Human-Centered Scientific Agent in a Structured Collaborative Environment
 
 ### 🌟 Vision and Philosophy
