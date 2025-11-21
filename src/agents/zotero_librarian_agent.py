@@ -23,7 +23,7 @@ from src.Prompts.zotero_librarian_prompts import SYSTEM_PROMPT
 from src.zotero.zotero_client import (
     get_item_count,
     get_items_by_collection_id,
-    get_items_by_id,
+    get_item_by_id,
     list_all_collections,
 )
 
@@ -151,7 +151,7 @@ def get_metadata(item_id: str) -> dict:
 
     Use this when the user needs detailed information about a specific paper or item.
     """
-    item = get_items_by_id(item_id)
+    item = get_item_by_id(item_id)
     return item[1]
 
 
