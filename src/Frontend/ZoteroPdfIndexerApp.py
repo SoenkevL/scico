@@ -194,6 +194,39 @@ def main() -> None:
 
         st.divider()
 
+        # Maintenance Section
+        st.header("🛠️ Maintenance")
+
+        if st.button("📂 Index Local Markdown", help="Index all files in markdown directory"):
+            if st.session_state.indexer:
+                progress_bar = st.sidebar.progress(0)
+                with st.spinner("Indexing local files..."):
+                    def update_progress_local(p: float):
+                        progress_bar.progress(p)
+
+                    result = st.session_state.indexer.index_all_markdown_files(
+                        progress_callback=update_progress_local
+                    )
+                    st.session_state.indexing_results = result
+                    progress_bar.empty()
+                    st.success(f"Completed: {result.successful} indexed")
+
+        with st.expander("Danger Zone"):
+            st.warning("This will permanently delete the vector index.")
+            confirm_clear = st.checkbox("I confirm I want to clear the index")
+
+            if st.button("🗑️ Clear Entire Index", type="primary", disabled=not confirm_clear):
+                if st.session_state.indexer:
+                    with st.spinner("Clearing index..."):
+                        if st.session_state.indexer.clear_index(confirm=True):
+                            st.success("Index cleared successfully.")
+                            st.session_state.indexing_results = None
+                            st.rerun()
+                        else:
+                            st.error("Failed to clear index.")
+
+        st.divider()
+
         # Display stats
         st.header("📊 Index Statistics")
         if st.button("Refresh Stats"):
@@ -334,6 +367,15 @@ def main() -> None:
                     with st.spinner("Loading collection items..."):
                         load_collection_items(collection_id)
 
+                    # Apply selection if "Select All" is active
+                    if st.session_state.get("select_all", False):
+                        items = st.session_state.collection_items
+                        st.session_state.item_selector = [
+                            format_item_display(item) for item in items
+                        ]
+                    else:
+                        st.session_state.item_selector = []
+
                     st.success(
                         f"✓ Loaded {len(st.session_state.collection_items)} items"
                     )
@@ -350,9 +392,6 @@ def main() -> None:
         st.header("2️⃣ Select Items")
 
         if st.session_state.collection_items:
-            # Select all checkbox
-            select_all: bool = st.checkbox("Select All Items", key="select_all")
-
             # Create item display mapping
             item_display_map: Dict[str, Tuple[Path, Dict[str, Any]]] = {}
             for item in st.session_state.collection_items:
@@ -361,19 +400,22 @@ def main() -> None:
 
             item_names: List[str] = list(item_display_map.keys())
 
+            # Callback for select all
+            def on_select_all():
+                if st.session_state.select_all:
+                    st.session_state.item_selector = item_names
+                else:
+                    st.session_state.item_selector = []
+
+            # Select all checkbox
+            st.checkbox("Select All Items", key="select_all", on_change=on_select_all)
+
             # Multiselect for items
-            selected_display_names: List[str]
-            if select_all:
-                selected_display_names = st.multiselect(
-                    "Select items to index",
-                    options=item_names,
-                    default=item_names,
-                    key="item_selector",
-                )
-            else:
-                selected_display_names = st.multiselect(
-                    "Select items to index", options=item_names, key="item_selector"
-                )
+            selected_display_names = st.multiselect(
+                "Select items to index",
+                options=item_names,
+                key="item_selector",
+            )
 
             # Store selected items in session state
             st.session_state.selected_items = [
@@ -415,12 +457,16 @@ def main() -> None:
             try:
                 status_text.text("Starting indexing process...")
 
+                def update_progress(p: float):
+                    progress_bar.progress(p)
+
                 # Index the selected items
                 logger.info(f"Indexing {len(st.session_state.selected_items)} items...")
                 result: IndexingResult = st.session_state.indexer.update_index(
                     query_type=QueryType.ITEM_LIST,
                     query_value=st.session_state.selected_items,
                     force=force_reindex,
+                    progress_callback=update_progress,
                 )
 
                 progress_bar.progress(100)
