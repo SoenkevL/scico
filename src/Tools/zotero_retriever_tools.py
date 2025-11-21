@@ -89,7 +89,10 @@ def semantic_search(
 
 
 def multi_query_search(
-        queries: List[str], storage: ChromaStorage, k: int
+        queries: List[str],
+        storage: ChromaStorage,
+        k: int,
+        metadata_filter: dict[str, Any] | None = None,
 ) -> list[Document]:
     """
     Perform multiple semantic searches and combine results.
@@ -98,6 +101,7 @@ def multi_query_search(
         queries: List of related search queries to execute.
         storage: vector storage to call search function on
         k: number of results to return
+        metadata_filter: Optional dictionary of metadata to filter results by
 
      Returns:
         A structured string of relevant information using the following format:
@@ -107,7 +111,7 @@ def multi_query_search(
     seen_ids = set()
 
     for query in queries:
-        results = storage.search(query=query, n_results=k)
+        results = storage.search(query=query, metadata=metadata_filter, n_results=k)
         for doc in results:
             # Use a hash of content + metadata to deduplicate
             doc_id = f"{doc.page_content[:100]}_{doc.metadata.get('item_id', '')}"
