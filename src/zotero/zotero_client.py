@@ -6,19 +6,25 @@ Zotero items and collections, returning them in a format suitable for
 the PDF indexing pipeline.
 """
 
+# === import global packages ===
 import logging
 import os
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple, Optional, TypedDict
 
 from dotenv import load_dotenv
 from pyzotero import zotero
 
-logger = logging.getLogger(__name__)
+# === import local file dependencies ===
+
+# === initialize global objects ===
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
+# === define classes ===
 @dataclass
 class ZoteroClientConfig:
     library_id: str = os.getenv("ZOTERO_ID", '')
@@ -33,169 +39,96 @@ class ZoteroClientConfig:
             raise ValueError(f"LOCAL_ZOTERO_PATH must be provided and exist: {self.local_storage_path}")
 
 
+class ZoteroMetadata(TypedDict):
+    title: str
+    authors: str
+    abstract: str
+    collections: str
+    tags: str
+    citation_key: str
+    doi: str
+    date: str
+    item_type: str
+    publication: str
+    url: str
+    source: str
+    item_id: str
+    storage_key: str
+
+
 CONFIG = ZoteroClientConfig()
 ZOT = zotero.Zotero(
     CONFIG.library_id, "user", CONFIG.api_key
 )
 
 
-def get_item_count() -> int:
-    """Returns the number of items in the Zotero Library."""
-    return int(ZOT.count_items())
-
-
-def get_items_by_name(item_name: str) -> List[Tuple[Path, Dict[str, Any]]]:
+# === define protected functions ===
+def _get_storage_key_from_item(item: Dict[str, Any]) -> str:
     """
-    Get items matching a name/title.
+    Extract storage key from item.
 
     Args:
-        item_name: Name or title to search for (partial match)
+        item: Zotero item
 
     Returns:
-        List of (pdf_path, metadata) tuples
+        Storage key string
     """
-    logger.info(f"Searching for items with name: {item_name}")
+    # Try to get from attachment link
+    links = item.get('links', {})
+    attachment = links.get('attachment', {})
+    href = attachment.get('href', '')
 
-    # Search for items by title
-    items = ZOT.items(q=item_name, qmode='titleCreatorYear')
+    if href:
+        return href.split('/')[-1]
 
-    results = []
-    for item in items:
-        if item_tuple := _process_item(item):
-            results.append(item_tuple)
+    # Check children for attachment
+    item_id = item.get('key')
+    if item_id:
+        children = ZOT.children(item_id)
+        if not isinstance(children, list):
+            children = list(children)
+        for child in children:
+            if not isinstance(child, dict):
+                continue
+            if child.get('data', {}).get('contentType') == 'application/pdf':
+                return child.get('key', '')
 
-    logger.info(f"Found {len(results)} items matching '{item_name}'")
-    return results
+    # Fallback to item key
+    return item.get('key', '')
 
 
-def get_items_by_id(item_id: str) -> Tuple[Path, Dict[str, Any]]:
+def _get_pdf_from_storage_key(storage_key: str) -> Optional[Path]:
     """
-    Get a specific item by its ID.
+    Get PDF path from a storage key.
 
     Args:
-        item_id: Zotero item ID (key)
+        storage_key: Zotero storage key
 
     Returns:
-        List containing single (pdf_path, metadata) tuple if found
+        Path to PDF file or None
     """
-    logger.info(f"Fetching item with ID: {item_id}")
+    storage_path = CONFIG.local_storage_path / 'storage' / storage_key
 
-    try:
-        item = ZOT.item(item_id)
-        if item_tuple := _process_item(item):
-            return item_tuple
-    except Exception as e:
-        logger.error(f"Error fetching item {item_id}: {e}")
-
-    return Path(""), {}
-
-
-def get_items_by_collection_name(collection_name: str) -> List[Tuple[Path, Dict[str, Any]]]:
-    """
-    Get all items in a collection by its name.
-
-    Args:
-        collection_name: Name of the Zotero collection
-
-    Returns:
-        List of (pdf_path, metadata) tuples
-    """
-    logger.info(f"Fetching items from collection: {collection_name}")
-
-    # Find collection ID by name
-    collections = list_all_collections()
-    collection_id = collections.get(collection_name)
-
-    if not collection_id:
-        logger.warning(f"Collection '{collection_name}' not found")
-        return []
-
-    return get_items_by_collection_id(collection_id)
-
-
-def get_items_by_collection_id(collection_id: str) -> List[Tuple[Path, Dict[str, Any]]]:
-    """
-    Get all items in a collection by its ID.
-
-    Args:
-        collection_id: Zotero collection ID (key)
-
-    Returns:
-        List of (pdf_path, metadata) tuples
-    """
-    logger.info(f"Fetching items from collection ID: {collection_id}")
-
-    try:
-        items = ZOT.collection_items(collection_id)
-    except Exception as e:
-        logger.error(f"Error fetching collection {collection_id}: {e}")
-        return []
-
-    results = []
-    if not isinstance(items, list):
-        items = list(items)
-    for item in items:
-        # Skip child items (attachments, notes, etc.)
-        if item.get('data', {}).get('parentItem'):
-            continue
-
-        if item_tuple := _process_item(item):
-            results.append(item_tuple)
-
-    logger.info(f"Found {len(results)} items in collection '{collection_id}'")
-    return results
-
-
-def list_all_collections() -> Dict[str, str]:
-    """
-    Returns a dictionary of all collections.
-
-    Returns:
-        Dictionary with collection names as keys and IDs as values
-    """
-    collections = ZOT.collections()
-    collection_dict = {}
-    for collection in collections:
-        collection_dict[collection['data']['name']] = collection['data']['key']
-    return collection_dict
-
-
-def _process_item(item: Dict[str, Any]) -> Optional[Tuple[Path, Dict[str, Any]]]:
-    """
-    Process a Zotero item and extract PDF path and metadata.
-
-    Args:
-        item: Raw Zotero item from API
-
-    Returns:
-        Tuple of (pdf_path, metadata) or None if no PDF found
-    """
-    try:
-        # Get item data
-        item_data = item.get('data', {})
-        item_id = item_data.get('key')
-
-        if not item_id:
-            logger.warning("Item has no key, skipping")
-            return None
-
-        # Get PDF path
-        pdf_path = _get_pdf_path_for_item(item)
-
-        if not pdf_path:
-            logger.debug(f"No PDF found for item {item_id}")
-            return None
-
-        # Parse metadata
-        metadata = _parse_item_metadata(item)
-        metadata['item_id'] = item_id
-        metadata['storage_key'] = _get_storage_key_from_item(item)
-
-        return (pdf_path, metadata)
-
-    except Exception as e:
-        logger.error(f"Error processing item: {e}", exc_info=True)
+    if not storage_path.exists():
+        logger.debug(f"Storage path does not exist: {storage_path}")
         return None
+
+    # Find PDF file in storage directory
+    for file in storage_path.iterdir():
+        if file.suffix.lower() == '.pdf':
+            return file
+
+    logger.debug(f"No PDF found in storage path: {storage_path}")
+    return None
+
+
+def _get_pdf_path_from_child(child_item: Dict[str, Any]) -> Optional[Path]:
+    """Get PDF path from a child attachment item."""
+    child_key = child_item.get('key')
+    if not child_key:
+        return None
+
+    return _get_pdf_from_storage_key(child_key)
 
 
 def _get_pdf_path_for_item(item: Dict[str, Any]) -> Optional[Path]:
@@ -235,81 +168,6 @@ def _get_pdf_path_for_item(item: Dict[str, Any]) -> Optional[Path]:
     return _get_pdf_from_storage_key(storage_key)
 
 
-def _get_pdf_path_from_child(child_item: Dict[str, Any]) -> Optional[Path]:
-    """Get PDF path from a child attachment item."""
-    child_key = child_item.get('key')
-    if not child_key:
-        return None
-
-    return _get_pdf_from_storage_key(child_key)
-
-
-def _get_pdf_from_storage_key(storage_key: str) -> Optional[Path]:
-    """
-    Get PDF path from a storage key.
-
-    Args:
-        storage_key: Zotero storage key
-
-    Returns:
-        Path to PDF file or None
-    """
-    storage_path = CONFIG.local_storage_path / 'storage' / storage_key
-
-    if not storage_path.exists():
-        logger.debug(f"Storage path does not exist: {storage_path}")
-        return None
-
-    # Find PDF file in storage directory
-    for file in storage_path.iterdir():
-        if file.suffix.lower() == '.pdf':
-            return file
-
-    logger.debug(f"No PDF found in storage path: {storage_path}")
-    return None
-
-
-def _get_storage_key_from_item(item: Dict[str, Any]) -> str:
-    """
-    Extract storage key from item.
-
-    Args:
-        item: Zotero item
-
-    Returns:
-        Storage key string
-    """
-    # Try to get from attachment link
-    links = item.get('links', {})
-    attachment = links.get('attachment', {})
-    href = attachment.get('href', '')
-
-    if href:
-        return href.split('/')[-1]
-
-    # Check children for attachment
-    item_id = item.get('key')
-    if item_id:
-        children = ZOT.children(item_id)
-        if not isinstance(children, list):
-            children = list(children)
-        for child in children:
-            if not isinstance(child, dict):
-                continue
-            if child.get('data', {}).get('contentType') == 'application/pdf':
-                return child.get('key', '')
-
-    # Fallback to item key
-    return item.get('key', '')
-
-
-def _parse_collections(collection: List[str]) -> str:
-    all_collections = list_all_collections()
-    all_collections = {item: key for key, item in all_collections.items()}
-    collection_names = [all_collections[col] for col in collection]
-    return ': '.join(collection_names)
-
-
 def _parse_creators(creators: List[Dict[str, str]]) -> str:
     """Parse creators into a string."""
     author_list = []
@@ -334,7 +192,17 @@ def _parse_citation_key(extra: str) -> str:
     return ''
 
 
-def _parse_item_metadata(item: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_collections(collection: List[str]) -> str:
+    """Parse collection keys into names string."""
+    all_collections = list_all_collections()
+    # Reverse mapping: ID -> Name
+    id_to_name = {id_: name for name, id_ in all_collections.items()}
+
+    collection_names = [id_to_name.get(col, col) for col in collection]
+    return ': '.join(collection_names)
+
+
+def _parse_item_metadata(item: Dict[str, Any]) -> ZoteroMetadata:
     """
     Parse metadata from a Zotero item.
 
@@ -342,11 +210,11 @@ def _parse_item_metadata(item: Dict[str, Any]) -> Dict[str, Any]:
         item: Raw Zotero item
 
     Returns:
-        Dictionary with parsed metadata
+        ZoteroMetadata dictionary
     """
     item_data = item.get('data', {})
 
-    metadata = {
+    metadata: ZoteroMetadata = {
         'title': item_data.get('title', ''),
         'authors': _parse_creators(item_data.get('creators', [])),
         'abstract': item_data.get('abstractNote', ''),
@@ -359,12 +227,175 @@ def _parse_item_metadata(item: Dict[str, Any]) -> Dict[str, Any]:
         'publication': item_data.get('publicationTitle', ''),
         'url': item_data.get('url', ''),
         'source': 'Zotero',
-        'item_id': item_data.get('key'),
+        'item_id': item_data.get('key', ''),
+        'storage_key': '',  # Will be populated later
     }
 
     return metadata
 
 
+def _process_item(item: Dict[str, Any]) -> Optional[Tuple[Path, ZoteroMetadata]]:
+    """
+    Process a Zotero item and extract PDF path and metadata.
+
+    Args:
+        item: Raw Zotero item from API
+
+    Returns:
+        Tuple of (pdf_path, metadata) or None if no PDF found
+    """
+    try:
+        # Get item data
+        item_data = item.get('data', {})
+        item_id = item_data.get('key')
+
+        if not item_id:
+            logger.warning("Item has no key, skipping")
+            return None
+
+        # Get PDF path
+        pdf_path = _get_pdf_path_for_item(item)
+
+        if not pdf_path:
+            logger.debug(f"No PDF found for item {item_id}")
+            return None
+
+        # Parse metadata
+        metadata = _parse_item_metadata(item)
+        metadata['storage_key'] = _get_storage_key_from_item(item)
+
+        return (pdf_path, metadata)
+
+    except Exception as e:
+        logger.error(f"Error processing item: {e}", exc_info=True)
+        return None
+
+
+# === define public functions ===
+@lru_cache(maxsize=1)
+def list_all_collections() -> Dict[str, str]:
+    """
+    Returns a dictionary of all collections.
+    Cached to prevent repeated API calls.
+
+    Returns:
+        Dictionary with collection names as keys and IDs as values
+    """
+    collections = ZOT.collections()
+    collection_dict = {}
+    for collection in collections:
+        collection_dict[collection['data']['name']] = collection['data']['key']
+    return collection_dict
+
+
+def get_item_count() -> int:
+    """Returns the number of items in the Zotero Library."""
+    return int(ZOT.count_items())
+
+
+def get_items_by_name(item_name: str) -> List[Tuple[Path, ZoteroMetadata]]:
+    """
+    Get items matching a name/title.
+
+    Args:
+        item_name: Name or title to search for (partial match)
+
+    Returns:
+        List of (pdf_path, metadata) tuples
+    """
+    logger.info(f"Searching for items with name: {item_name}")
+
+    # Search for items by title, Creator and Year
+    items = ZOT.items(q=item_name, qmode='titleCreatorYear')
+
+    results = []
+    for item in items:
+        if item_tuple := _process_item(item):
+            results.append(item_tuple)
+
+    logger.info(f"Found {len(results)} items matching '{item_name}'")
+    return results
+
+
+def get_items_by_id(item_id: str) -> Tuple[Path, ZoteroMetadata]:
+    """
+    Get a specific item by its ID.
+
+    Args:
+        item_id: Zotero item ID (key)
+
+    Returns:
+        Tuple containing single (pdf_path, metadata) tuple if found
+    """
+    logger.info(f"Fetching item with ID: {item_id}")
+
+    try:
+        item = ZOT.item(item_id)
+        if item_tuple := _process_item(item):
+            return item_tuple
+    except Exception as e:
+        logger.error(f"Error fetching item {item_id}: {e}")
+
+    return Path(""), {}  # type: ignore
+
+
+def get_items_by_collection_id(collection_id: str) -> List[Tuple[Path, ZoteroMetadata]]:
+    """
+    Get all items in a collection by its ID.
+
+    Args:
+        collection_id: Zotero collection ID (key)
+
+    Returns:
+        List of (pdf_path, metadata) tuples
+    """
+    logger.info(f"Fetching items from collection ID: {collection_id}")
+
+    try:
+        items = ZOT.collection_items(collection_id)
+    except Exception as e:
+        logger.error(f"Error fetching collection {collection_id}: {e}")
+        return []
+
+    results = []
+    if not isinstance(items, list):
+        items = list(items)
+    for item in items:
+        # Skip child items (attachments, notes, etc.)
+        if item.get('data', {}).get('parentItem'):
+            continue
+
+        if item_tuple := _process_item(item):
+            results.append(item_tuple)
+
+    logger.info(f"Found {len(results)} items in collection '{collection_id}'")
+    return results
+
+
+def get_items_by_collection_name(collection_name: str) -> List[Tuple[Path, ZoteroMetadata]]:
+    """
+    Get all items in a collection by its name.
+
+    Args:
+        collection_name: Name of the Zotero collection
+
+    Returns:
+        List of (pdf_path, metadata) tuples
+    """
+    logger.info(f"Fetching items from collection: {collection_name}")
+
+    # Find collection ID by name
+    collections = list_all_collections()
+    collection_id = collections.get(collection_name)
+
+    if not collection_id:
+        logger.warning(f"Collection '{collection_name}' not found")
+        return []
+
+    return get_items_by_collection_id(collection_id)
+
+
+# === main functionallity ===
 if __name__ == "__main__":
     # Example usage
     print(f"Connected to Zotero library with {get_item_count()} items")
