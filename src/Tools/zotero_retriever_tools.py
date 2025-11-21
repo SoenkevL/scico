@@ -10,6 +10,7 @@ from src.storages.ChromaStorage import ChromaStorage
 
 logger = logging.getLogger(__name__)
 
+
 # ===== Helper Functions =====
 def _document_to_dict(doc: Document) -> dict:
     """Format a Document into a source dictionary for the response."""
@@ -72,6 +73,7 @@ def list_of_documents_to_string(documents: list[Document]) -> str:
         )
     display_string += "--- \n\n"
     return display_string
+
 
 def semantic_search(
         query: str, storage: ChromaStorage, k: int

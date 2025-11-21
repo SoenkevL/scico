@@ -3,6 +3,7 @@ import logging.config
 import os
 from datetime import datetime
 
+
 def setup_logging(log_level=logging.INFO, log_file=None):
     """Centralized logging configuration for the entire project"""
 

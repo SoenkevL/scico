@@ -3,7 +3,7 @@
 from dotenv import load_dotenv
 from fastmcp import FastMCP
 
-#Initializations
+# Initializations
 ## load env
 load_dotenv()
 ## Initialize the fastmcp class

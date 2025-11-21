@@ -10,9 +10,6 @@ from src.storages.ChromaStorage import ChromaStorage
 load_dotenv()
 
 
-
-
-
 # ===== Runtime Context Schema =====
 # Initialize vector storage at module level for LangGraph CLI
 class RetrieverContext(BaseModel):
@@ -27,6 +24,7 @@ class RetrieverContext(BaseModel):
     k_documents: int = 4
     relevance_threshold: float = 1.5
     preferred_format: str = "markdown"
+
 
 # ===== Structured Response Format =====
 

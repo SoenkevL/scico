@@ -63,6 +63,7 @@ class JudgeDecision(BaseModel):
         description="New, optimized search queries if info is insufficient.", default=None)
     reasoning: str = Field(description="Reasoning for the decision.")
 
+
 class ZoteroState(TypedDict):
     """
     Represents the state of the research agent.
@@ -90,7 +91,7 @@ def check_for_user_query(state: ZoteroState) -> Command[Literal["generate_initia
     updates = {}
     if "loop_count" not in state:
         updates["loop_count"] = 0
-    
+
     if not state.get("user_query"):
         user_input = interrupt({
             "msg": "Please provide a research query to search your Zotero library.",
@@ -230,7 +231,7 @@ def judge_information(state: ZoteroState) -> Command[Literal["retrieve_zotero_do
         return Command(goto="final_answer_tool")
 
     structured_llm = llm.with_structured_output(JudgeDecision)
-    
+
     prompt = (
         f"User Query: {query}\n\n"
         f"Available Information Summary:\n{info_string}\n\n"

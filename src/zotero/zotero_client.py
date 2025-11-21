@@ -424,6 +424,7 @@ def get_item_id_from_storage_key(storage_key: str) -> Optional[str]:
         logger.error(f"Error fetching item for storage key {storage_key}: {e}")
         return None
 
+
 # === main functionallity ===
 if __name__ == "__main__":
     # Example usage

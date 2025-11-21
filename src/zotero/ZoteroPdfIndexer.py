@@ -309,7 +309,6 @@ class PdfIndexer:
         indexed_items = indexing_stats.get("items", {})
         indexed_storage_keys = set([value.get('storage_key') for value in indexed_items.values()])
 
-
         for idx, md_path in enumerate(markdown_files, 1):
             if progress_callback:
                 progress_callback(idx / total_items)
