@@ -92,7 +92,7 @@ class PdfIndexer:
 
         if query_type == QueryType.ITEM_ID and isinstance(query_value, str):
             # Normalize single item return to list
-            item = self.zotero_client.get_items_by_id(query_value)
+            item = self.zotero_client.get_item_by_id(query_value)
             return [item] if item else []
 
         if query_type == QueryType.COLLECTION_NAME and isinstance(query_value, str):
@@ -251,7 +251,7 @@ class PdfIndexer:
     def _index_by_item_id(self, item_id: str) -> IndexingResult:
         """Index PDFs by item ID."""
         logger.info(f"Indexing by item ID: {item_id}")
-        item = self.zotero_client.get_items_by_id(item_id)
+        item = self.zotero_client.get_item_by_id(item_id)
         # Wrap single item in list
         return self._index_items_batch([item] if item else [])
 
@@ -297,21 +297,28 @@ class PdfIndexer:
         failed_items = []
         total_chunks = 0
 
+        # get all items currently in the index
+        indexing_stats = self.get_indexing_stats()
+        indexed_items = indexing_stats.get("items", {})
+        indexed_storage_keys = set([value.get('storage_key') for value in indexed_items.values()])
+
+
         for idx, md_path in enumerate(markdown_files, 1):
             try:
                 # Attempt to reconstruct minimal metadata from path structure
                 # Structure is expected to be: .../storage_key/filename.md
                 storage_key = md_path.parent.name
 
-                # We construct minimal metadata since we are bypassing Zotero lookup
-                metadata = {
-                    "source": str(md_path),
-                    "filename": md_path.name,
-                    "storage_key": storage_key,
-                    # Use filename or parent folder as fallback item_id for tracking
-                    "item_id": storage_key
-                }
+                # continue to next one if allready indexed
+                if storage_key in indexed_storage_keys and not self.config.force_reindex:
+                    continue
 
+                # get the metadata for the item
+                item_id = zot.get_item_id_from_storage_key(storage_key)
+                if not item_id:
+                    logger.warning(f"No item id found for storage key: {storage_key}")
+                    continue
+                _, metadata = zot.get_item_by_id(item_id)
                 logger.info(f"Processing local markdown {idx}/{total_items}: {md_path}")
 
                 success, count, reason = self._process_markdown_and_index(md_path, metadata)
