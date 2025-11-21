@@ -11,7 +11,7 @@ This class coordinates:
 # === import global packages ===
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, Callable
 
 from langchain_core.documents import Document
 
@@ -201,6 +201,7 @@ class PdfIndexer:
     def _index_items_batch(
             self,
             items: List[Tuple[Path, zot.ZoteroMetadata]],
+            progress_callback: Optional[Callable[[float], None]] = None,
     ) -> IndexingResult:
         """
         Internal method to process a batch of items.
@@ -214,6 +215,9 @@ class PdfIndexer:
         logger.info(f"Starting to index {total_items} items")
 
         for idx, (pdf_path, metadata) in enumerate(items, 1):
+            if progress_callback:
+                progress_callback(idx / total_items)
+
             logger.info(f"Processing item {idx}/{total_items}: {pdf_path}")
 
             success, count, reason = self._process_single_item(pdf_path, metadata)
@@ -275,10 +279,13 @@ class PdfIndexer:
         """Search the vector indexer with its own search method."""
         return self.vector_indexer.search(query, metadata_filter or {}, n_results)
 
-    def index_all_markdown_files(self) -> IndexingResult:
+    def index_all_markdown_files(
+            self,
+            progress_callback: Optional[Callable[[float], None]] = None
+    ) -> IndexingResult:
         """
         Scan the configured markdown directory and index all found markdown files.
-        
+    
         This is useful for:
         1. Re-indexing existing content without querying Zotero.
         2. Ensuring manually added markdown files are indexed.
@@ -304,6 +311,9 @@ class PdfIndexer:
 
 
         for idx, md_path in enumerate(markdown_files, 1):
+            if progress_callback:
+                progress_callback(idx / total_items)
+
             try:
                 # Attempt to reconstruct minimal metadata from path structure
                 # Structure is expected to be: .../storage_key/filename.md
@@ -360,6 +370,7 @@ class PdfIndexer:
             query_type: QueryType,
             query_value: Union[str, List[Tuple[Path, Dict[str, Any]]]],
             force: bool = False,
+            progress_callback: Optional[Callable[[float], None]] = None,
     ) -> IndexingResult:
         """
         Update the existing index by re-processing items.
@@ -400,7 +411,7 @@ class PdfIndexer:
 
         # 3. Index Filtered Items
         logger.info(f"Indexing {len(items_to_process)} items")
-        return self._index_items_batch(items_to_process)
+        return self._index_items_batch(items_to_process, progress_callback=progress_callback)
 
     def get_indexing_stats(self) -> Dict[str, Any]:
         """Get statistics about the current index."""
