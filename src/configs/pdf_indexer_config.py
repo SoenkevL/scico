@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -37,10 +36,6 @@ class IndexingConfig:
     chunk_size: int = 1000
     chunk_overlap: int = 200
     chunking_strategy: str = "markdown+recursive"
-    vector_storage_path = os.getenv("VECTOR_STORAGE_PATH", "")
-    collection_name = "Zotero"
-    embedding_model = os.getenv("EMBEDDING_MODEL_NAME", "nomic-embed-text")
-    api = os.getenv("EMBEDDING_MODEL_API", "ollama")
 
     def __post_init__(self):
         """Convert string paths to Path objects."""
