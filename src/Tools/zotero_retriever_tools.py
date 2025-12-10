@@ -12,6 +12,10 @@ logger = logging.getLogger(__name__)
 
 
 # ===== Helper Functions =====
+def _parse_levels(metadata: dict[str, str]) -> str:
+    levels = [value for key, value in metadata.items() if 'level' in key]
+    return '; '.join(levels)
+
 def _document_to_dict(doc: Document) -> dict:
     """Format a Document into a source dictionary for the response."""
     metadata = doc.metadata
@@ -24,14 +28,8 @@ def _document_to_dict(doc: Document) -> dict:
         "split_id": metadata.get("split_id", None),
         "distance": metadata.get("distance", 0.0),
         "content": doc.page_content,
+        "levels": _parse_levels(metadata)
     }
-
-
-def _list_of_documents_to_dataframe(documents: list[Document]) -> pd.DataFrame:
-    """Convert a list of Document objects to a Pandas DataFrame for display."""
-    doc_dicts = [_document_to_dict(doc) for doc in documents]
-    return pd.DataFrame(doc_dicts)
-
 
 def _metadata_string_from_df(df: pd.DataFrame) -> str:
     """Convert a DataFrame of metadata to a string for display."""
@@ -53,15 +51,20 @@ def _content_string_from_df(df: pd.DataFrame) -> str:
 
 
 # === public functions ===
-def list_of_documents_to_string(documents: list[Document]) -> str:
+def list_of_documents_to_dataframe(documents: list[Document]) -> pd.DataFrame:
+    """Convert a list of Document objects to a Pandas DataFrame for display."""
+    doc_dicts = [_document_to_dict(doc) for doc in documents]
+    return pd.DataFrame(doc_dicts)
+
+
+def dataframe_of_documents_to_string(df: pd.DataFrame) -> str:
     """Convert a list of Document objects to a string for display.
     # Context from scientific literature
     ## title
     ### metadata
     ### content
     """
-    display_string = "# Context from scientific literature\n\n"
-    df = _list_of_documents_to_dataframe(documents)
+    display_string = "# Context from scientific literature \n\n"
     for title, group in df.groupby("title"):
         group = group.sort_values("split_id")
         content_string = _content_string_from_df(group)
@@ -73,6 +76,12 @@ def list_of_documents_to_string(documents: list[Document]) -> str:
         )
     display_string += "--- \n\n"
     return display_string
+
+
+def list_of_documents_to_string(documents: list[Document]) -> str:
+    """Convert a Pandas DataFrame of Documents to a string for display."""
+    df = list_of_documents_to_dataframe(documents)
+    return dataframe_of_documents_to_string(df)
 
 
 def semantic_search(
