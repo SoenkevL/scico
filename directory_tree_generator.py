@@ -9,9 +9,9 @@ def generate_tree_structure(
     root_path: str = "src",
     prefix: str = "",
     is_last: bool = True,
-    max_depth: int = None,
+    max_depth: int = 0,
     current_depth: int = 0,
-    ignore_patterns: list = None
+    ignore_patterns: list|None = None
 ) -> str:
     """
     Generate a tree structure of a directory for markdown display.
